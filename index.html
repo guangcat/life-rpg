@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>战力面板 · Life RPG</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="战力面板">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#0b0f17; --panel:#141a26; --panel2:#1b2333; --line:#26313f;
+  --txt:#e7edf7; --dim:#8b9ab0; --gold:#ffcf5c; --danger:#ff6b7a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 600px at 50% -200px,#1a2436 0%,var(--bg) 60%) fixed;
+  color:var(--txt);
+  font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-text-size-adjust:100%;
+  padding:calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset-bottom) + 28px);
+  max-width:620px;margin:0 auto;
+}
+h2{font-size:13px;font-weight:600;color:var(--dim);margin:22px 2px 10px;letter-spacing:.06em}
+
+/* ---------- HUD ---------- */
+.hud{background:linear-gradient(180deg,#1b2434,#141a26);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;position:relative;overflow:hidden}
+.hud::after{content:"";position:absolute;inset:0;background:radial-gradient(300px 120px at 50% 0,rgba(255,207,92,.10),transparent);pointer-events:none}
+.hud-top{display:flex;align-items:baseline;gap:10px}
+.lv{font-size:30px;font-weight:800;color:var(--gold);line-height:1;text-shadow:0 0 22px rgba(255,207,92,.35)}
+.lv small{font-size:12px;font-weight:600;color:var(--dim);margin-right:4px}
+.hud-title{font-size:12px;color:var(--dim);margin-left:auto}
+.bar{height:9px;border-radius:9px;background:#0a0e15;border:1px solid var(--line);overflow:hidden;margin:12px 0 6px}
+.bar>i{display:block;height:100%;width:0;border-radius:9px;transition:width .45s cubic-bezier(.2,.8,.2,1)}
+.hud-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--dim)}
+.chips{display:flex;gap:8px;margin-top:12px}
+.chip{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 8px;text-align:center}
+.chip b{display:block;font-size:17px;font-weight:800;color:var(--txt);line-height:1.25}
+.chip span{font-size:10px;color:var(--dim)}
+.chip.hot b{color:var(--gold)}
+
+/* ---------- 属性面板 ---------- */
+.attrs{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 11px;position:relative;overflow:hidden;transition:transform .12s,border-color .2s}
+.card:active{transform:scale(.98)}
+.card .glyph{position:absolute;right:8px;top:4px;font-size:26px;opacity:.09;font-weight:800}
+.card h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em}
+.card .cval{font-size:11px;color:var(--dim);margin-top:1px}
+.card .cbar{height:5px;border-radius:5px;background:#0a0e15;overflow:hidden;margin:8px 0 5px}
+.card .cbar>i{display:block;height:100%;width:0;border-radius:5px;transition:width .45s cubic-bezier(.2,.8,.2,1)}
+.card .foot{font-size:10px;color:var(--dim);display:flex;justify-content:space-between}
+.card.risk{border-color:rgba(255,107,122,.5)}
+.card.risk h3{color:var(--danger)}
+.card.bump{animation:bump .45s}
+@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.045)}100%{transform:scale(1)}}
+
+/* ---------- 行动 ---------- */
+.acts{display:flex;flex-direction:column;gap:8px}
+.act{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;cursor:pointer;transition:transform .1s,background .15s}
+.act:active{transform:scale(.985);background:var(--panel2)}
+.act .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.act .t{font-size:14.5px;font-weight:600}
+.act .d{font-size:11px;color:var(--dim);margin-top:2px}
+.act .xp{margin-left:auto;font-size:12px;font-weight:800;flex:none}
+
+/* ---------- 今天 ---------- */
+.tl{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.tl .row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #1b2431;font-size:13px}
+.tl .row:last-child{border-bottom:0}
+.tl .row .tm{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+.tl .row .nm{font-weight:600}
+.tl .row .g{margin-left:auto;font-size:12px;font-weight:800}
+.empty{padding:20px 12px;text-align:center;color:var(--dim);font-size:12.5px;line-height:1.8}
+
+/* ---------- 工具 ---------- */
+.tools{display:flex;gap:8px;margin-top:22px}
+.tools button,.tools label{flex:1;text-align:center;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:11px;padding:11px 0;font-size:12px;font-family:inherit;cursor:pointer}
+.tools button:active,.tools label:active{background:var(--panel2)}
+.note{font-size:11px;color:var(--dim);line-height:1.7;margin:12px 2px 0}
+.note b{color:#c9d6e6}
+
+/* ---------- 近 7 天 + 战报 ---------- */
+.wk{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px;height:74px}
+.wk .d{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px}
+.wk .d i{display:block;width:100%;border-radius:4px;background:linear-gradient(180deg,#4f8cff,#2f5fb0);min-height:3px;transition:height .4s}
+.wk .d.today i{background:linear-gradient(180deg,#ffcf5c,#8a6b1f)}
+.wk .d span{font-size:9px;color:var(--dim);white-space:nowrap}
+.rep{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;font-size:12.5px;line-height:1.95;white-space:pre-wrap;color:#c9d6e6;font-variant-numeric:tabular-nums}
+.copybtn{width:100%;margin-top:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:11px 0;font-size:12.5px;font-family:inherit;cursor:pointer}
+.copybtn:active{background:var(--panel2)}
+
+/* ---------- 反馈 ---------- */
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);pointer-events:none;z-index:50;display:flex;flex-direction:column;gap:6px;align-items:center}
+#toast div{background:rgba(20,26,38,.96);border:1px solid var(--line);border-radius:11px;padding:9px 15px;font-size:13px;font-weight:700;animation:rise 1.5s ease-out forwards;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+@keyframes rise{0%{opacity:0;transform:translateY(14px) scale(.94)}18%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-26px)}}
+.lvup{font-size:14px;font-weight:800}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="hud-top">
+    <div class="lv"><small>Lv</small><span id="plv">1</span></div>
+    <div class="hud-title">周光瑾 / 主线:上岸</div>
+  </div>
+  <div class="bar"><i id="pxp" style="background:linear-gradient(90deg,#8a6b1f,#ffcf5c)"></i></div>
+  <div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div>
+  <div class="chips">
+    <div class="chip hot"><b id="streak">0</b><span>连击天数</span></div>
+    <div class="chip"><b id="dday">–</b><span>距四级(预计)</span></div>
+    <div class="chip"><b id="todayn">0</b><span>今日记录</span></div>
+  </div>
+</div>
+
+<h2>属性面板</h2>
+<div class="attrs" id="attrs"></div>
+
+<h2>记录一次</h2>
+<div class="acts" id="acts"></div>
+
+<h2>今天</h2>
+<div class="tl" id="tl"></div>
+
+<h2>近 7 天</h2>
+<div class="wk" id="wk"></div>
+
+<h2>今日结算</h2>
+<div class="rep" id="rep"></div>
+<button class="copybtn" id="btnCopy">复制今日战报</button>
+
+<div class="note"><b>底线:</b>重修一门都不能再挂。毕业证 = 考研资格,分数再高也换不回来。</div>
+
+<div class="tools">
+  <button id="btnExp">导出备份</button>
+  <label>导入备份<input type="file" id="fileImp" accept=".json,application/json" hidden></label>
+  <button id="btnRst">清空</button>
+</div>
+<div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。<b>每周导出一次备份</b>。</div>
+
+<div id="toast"></div>
+
+<script>
+const KEY='liferpg.v1';
+
+const CATS=[
+  {k:'math', n:'数学', c:'#4f8cff', g:'∑'},
+  {k:'eng',  n:'英语', c:'#37d6a0', g:'A'},
+  {k:'cs',   n:'专业', c:'#b783ff', g:'{}'},
+  {k:'grad', n:'毕业', c:'#ff6b7a', g:'!'},
+  {k:'vit',  n:'体力', c:'#ffa94d', g:'♥'},
+  {k:'intel',n:'情报', c:'#5ec8ff', g:'?'}
+];
+
+const ACTS=[
+  {id:'eng_drill', t:'英语一局',      c:'eng',  xp:30, d:'20 分钟:背词 + 一篇精听'},
+  {id:'eng_words', t:'只背词',        c:'eng',  xp:12, d:'5 分钟也算,重要的是不断'},
+  {id:'math_block',t:'数学一节',      c:'math', xp:40, d:'40 分钟:看课 + 做题'},
+  {id:'math_fix',  t:'翻昨天错题',    c:'math', xp:15, d:'不想开始就先做这个'},
+  {id:'cs_block',  t:'专业课一节',    c:'cs',   xp:30, d:'数据结构 / 操作系统'},
+  {id:'grad_class',t:'重修课全勤',    c:'grad', xp:20, d:'一节不逃,平时分是免费分'},
+  {id:'grad_hw',   t:'交作业',        c:'grad', xp:15, d:'平时分是白给的'},
+  {id:'grad_intel',t:'要考纲/往年题', c:'intel',xp:35, d:'免听课最大的风险是不知道考什么'},
+  {id:'vit_sleep', t:'24:00 前睡',    c:'vit',  xp:20, d:'作息是体力的唯一来源'},
+  {id:'vit_sport', t:'运动 20 分钟',  c:'vit',  xp:25, d:'体质测试也是学分'},
+  {id:'min_open',  t:'打开计划看一眼',c:'intel',xp:8,  d:'最低成本入口,用来续连击'}
+];
+
+const need=lv=>100+(lv-1)*60;
+function lvOf(xp){let lv=1,r=xp;while(r>=need(lv)){r-=need(lv);lv++;}return{lv,rem:r,need:need(lv)};}
+const cat=k=>CATS.find(c=>c.k===k);
+const day=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const hm=ts=>{const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+
+function blank(){const a={};CATS.forEach(c=>a[c.k]=0);return{attr:a,log:[],days:{},created:Date.now()};}
+let S=(()=>{try{const r=localStorage.getItem(KEY);if(!r)return blank();
+  const o=JSON.parse(r);if(!o||!o.attr)return blank();
+  CATS.forEach(c=>{if(typeof o.attr[c.k]!=='number')o.attr[c.k]=0;});
+  o.log=o.log||[];o.days=o.days||{};return o;}catch(e){return blank();}})();
+
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
+const total=()=>CATS.reduce((s,c)=>s+S.attr[c.k],0);
+
+function streakOf(){
+  const act=k=>(S.days[k]&&S.days[k].n>0)?1:0;
+  const d=new Date();
+  if(!act(day()))d.setDate(d.getDate()-1);
+  let n=0;
+  for(let i=0;i<400;i++){
+    const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');
+    if(act(y+'-'+m+'-'+dd)){n++;d.setDate(d.getDate()-1);}else break;
+  }
+  return n;
+}
+
+function nthSat(y,mo,n){
+  let c=0;
+  for(let i=1;i<=31;i++){
+    const t=new Date(y,mo-1,i);
+    if(t.getMonth()!==mo-1)break;
+    if(t.getDay()===6&&++c===n)return t;
+  }
+  return null;
+}
+function dday(){
+  const t=new Date();t.setHours(0,0,0,0);
+  let e=nthSat(t.getFullYear(),12,3);
+  if(!e||e<t)e=nthSat(t.getFullYear()+1,12,3);
+  return Math.max(0,Math.round((e-t)/86400000));
+}
+
+function toast(txt,color){
+  const box=document.getElementById('toast');
+  const el=document.createElement('div');
+  el.textContent=txt;
+  if(color)el.style.color=color;
+  box.appendChild(el);
+  setTimeout(()=>el.remove(),1500);
+}
+
+function render(bump){
+  const t=total(),p=lvOf(t);
+  document.getElementById('plv').textContent=p.lv;
+  document.getElementById('pxp').style.width=(p.rem/p.need*100)+'%';
+  document.getElementById('pxptxt').textContent=p.rem+' / '+p.need;
+  document.getElementById('ptotal').textContent='累计 '+t;
+  document.getElementById('streak').textContent=streakOf();
+  document.getElementById('dday').textContent=dday();
+
+  const today=day(),rows=S.log.filter(l=>l.d===today);
+  document.getElementById('todayn').textContent=rows.length;
+
+  document.getElementById('attrs').innerHTML=CATS.map(c=>{
+    const xp=S.attr[c.k],a=lvOf(xp);
+    const gain=rows.filter(r=>r.c===c.k).reduce((s,r)=>s+r.xp,0);
+    return '<div class="card'+(c.k==='grad'?' risk':'')+(bump===c.k?' bump':'')+'">'
+      +'<div class="glyph" style="color:'+c.c+'">'+c.g+'</div>'
+      +'<h3 style="color:'+c.c+'">'+c.n+'</h3>'
+      +'<div class="cval">Lv '+a.lv+'</div>'
+      +'<div class="cbar"><i style="background:'+c.c+';width:'+(a.rem/a.need*100)+'%"></i></div>'
+      +'<div class="foot"><span>'+a.rem+'/'+a.need+'</span><span>'+(gain>0?'今日 +'+gain:'')+'</span></div>'
+      +'</div>';
+  }).join('');
+
+  document.getElementById('acts').innerHTML=ACTS.map(a=>{
+    const c=cat(a.c);
+    return '<div class="act" data-id="'+a.id+'">'
+      +'<span class="dot" style="background:'+c.c+';box-shadow:0 0 10px '+c.c+'66"></span>'
+      +'<span><span class="t">'+a.t+'</span><br><span class="d">'+a.d+'</span></span>'
+      +'<span class="xp" style="color:'+c.c+'">+'+a.xp+'</span>'
+      +'</div>';
+  }).join('');
+
+  document.getElementById('tl').innerHTML=rows.length?rows.slice().reverse().map(r=>{
+    const c=cat(r.c);
+    return '<div class="row"><span class="tm">'+r.tm+'</span>'
+      +'<span class="nm">'+r.n+'</span>'
+      +'<span class="g" style="color:'+c.c+'">'+c.n+' +'+r.xp+'</span></div>';
+  }).join(''):'<div class="empty">今天还没有记录。<br>点最下面那条「打开计划看一眼」也算一次。</div>';
+  renderWeek();
+  renderRep();
+}
+
+function record(id){
+  const a=ACTS.find(x=>x.id===id);if(!a)return;
+  const before=lvOf(total()).lv;
+  S.attr[a.c]+=a.xp;
+  const d=day(),now=new Date();
+  S.log.push({d:d,tm:hm(now),id:a.id,n:a.t,c:a.c,xp:a.xp,ts:now.getTime()});
+  S.days[d]=S.days[d]||{n:0,xp:0};
+  S.days[d].n++;S.days[d].xp+=a.xp;
+  save();
+  toast(cat(a.c).n+' +'+a.xp,cat(a.c).c);
+  const after=lvOf(total()).lv;
+  if(after>before)setTimeout(()=>toast('升级!Lv '+after,'#ffcf5c'),260);
+  render(a.c);
+}
+
+function last7(){
+  const out=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const rec=S.days[k];
+    out.push({k:k,label:(d.getMonth()+1)+'/'+d.getDate(),xp:rec?rec.xp:0,today:i===0});
+  }
+  return out;
+}
+
+function renderWeek(){
+  const w=last7(),mx=Math.max(10,Math.max.apply(null,w.map(d=>d.xp)));
+  document.getElementById('wk').innerHTML=w.map(d=>
+    '<div class="d'+(d.today?' today':'')+'">'
+    +'<i style="height:'+Math.round(d.xp/mx*100)+'%"></i>'
+    +'<span>'+d.label+'</span></div>'
+  ).join('');
+}
+
+function reportText(){
+  const rows=S.log.filter(l=>l.d===day());
+  const per={};
+  rows.forEach(r=>{per[r.c]=(per[r.c]||0)+r.xp;});
+  const gains=CATS.filter(c=>per[c.k]).map(c=>c.n+' +'+per[c.k]).join('   ');
+  const xp=rows.reduce((s,r)=>s+r.xp,0);
+  return '【'+day()+' 战报】\n'
+    +'记录 '+rows.length+' 次 · 今日 +'+xp+' XP\n'
+    +(gains||'(今天还没记录)')+'\n'
+    +'Lv '+lvOf(total()).lv+'(累计 '+total()+') · 连击 '+streakOf()+' 天\n'
+    +'距四级(预计) '+dday()+' 天';
+}
+
+function renderRep(){
+  document.getElementById('rep').textContent=reportText();
+  const bk=document.getElementById('bknote');
+  if(!bk)return;
+  let t;
+  if(!S.lastExport){
+    t='<b>还没备份过。</b>点下面导出,把 json 存到 D 盘。';
+  }else{
+    const dd=Math.floor((Date.now()-S.lastExport)/86400000);
+    t=dd<=0?'上次备份:今天':('上次备份:'+dd+' 天前'+(dd>=7?' <b>——该备份了</b>':''));
+  }
+  bk.innerHTML='数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。'+t;
+}
+
+document.getElementById('acts').addEventListener('click',e=>{
+  const el=e.target.closest('.act');if(el)record(el.dataset.id);
+});
+
+document.getElementById('btnCopy').addEventListener('click',function(){
+  const t=reportText();
+  const done=()=>toast('战报已复制','#37d6a0');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done).catch(fallback);
+  }else fallback();
+  function fallback(){
+    const ta=document.createElement('textarea');
+    ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done();}catch(e){toast('复制失败,长按选中','#ff6b7a');}
+    ta.remove();
+  }
+});
+
+document.getElementById('btnExp').addEventListener('click',()=>{
+  const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download='life-rpg-'+day()+'.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),3000);
+  S.lastExport=Date.now();save();renderRep();
+  toast('已导出备份','#37d6a0');
+});
+
+document.getElementById('fileImp').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      if(!o||typeof o.attr!=='object')throw 0;
+      S=o;CATS.forEach(c=>{if(typeof S.attr[c.k]!=='number')S.attr[c.k]=0;});
+      S.log=S.log||[];S.days=S.days||{};
+      save();render();toast('导入成功','#37d6a0');
+    }catch(err){toast('这个文件读不了','#ff6b7a');}
+  };
+  r.readAsText(f);e.target.value='';
+});
+
+document.getElementById('btnRst').addEventListener('click',()=>{
+  if(!confirm('清空全部进度?建议先导出备份。'))return;
+  S=blank();save();render();toast('已清空');
+});
+
+render();
+
+if(typeof navigator!=='undefined'&&'serviceWorker' in navigator
+   &&typeof location!=='undefined'&&location.protocol==='https:'){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
