@@ -96,6 +96,22 @@ h2{font-size:13px;font-weight:600;color:var(--dim);margin:22px 2px 10px;letter-s
 .copybtn{width:100%;margin-top:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:11px;padding:11px 0;font-size:12.5px;font-family:inherit;cursor:pointer}
 .copybtn:active{background:var(--panel2)}
 
+/* ---------- 身体数据 ---------- */
+.hv{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.hvrow{display:flex;align-items:center;padding:9px 12px;border-bottom:1px solid #1b2431;font-size:13px}
+.hvrow:last-child{border-bottom:0}
+.hvrow span{color:var(--dim)}
+.hvrow b{margin-left:auto;font-size:14px;font-variant-numeric:tabular-nums}
+.claim{display:block;width:100%;text-align:left;background:linear-gradient(90deg,#1d2a1f,#141a26);border:0;border-top:1px solid #1b2431;color:#7ee2a8;padding:11px 12px;font-size:12.5px;font-family:inherit;cursor:pointer}
+.claim:active{background:#1d2a1f}
+.hvmini{display:flex;gap:4px;align-items:flex-end;height:46px;padding:8px 12px 6px;border-top:1px solid #1b2431}
+.hvmini .m{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}
+.hvmini .m i{display:block;width:100%;border-radius:3px;background:linear-gradient(180deg,#37d6a0,#1d6b50);min-height:2px}
+.hvmini .m span{font-size:8px;color:var(--dim);white-space:nowrap}
+.vstat{font-size:11px;color:var(--dim);margin:8px 2px 0}
+.vset{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px}
+.vset input{width:100%;background:#0a0e15;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:10px;font-size:12.5px;font-family:inherit;margin-top:9px}
+
 /* ---------- 反馈 ---------- */
 #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);pointer-events:none;z-index:50;display:flex;flex-direction:column;gap:6px;align-items:center}
 #toast div{background:rgba(20,26,38,.96);border:1px solid var(--line);border-radius:11px;padding:9px 15px;font-size:13px;font-weight:700;animation:rise 1.5s ease-out forwards;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.45)}
@@ -134,6 +150,22 @@ h2{font-size:13px;font-weight:600;color:var(--dim);margin:22px 2px 10px;letter-s
 <h2>今日结算</h2>
 <div class="rep" id="rep"></div>
 <button class="copybtn" id="btnCopy">复制今日战报</button>
+
+<h2>身体数据</h2>
+<div class="hv" id="hv"></div>
+<div class="vstat" id="vstat"></div>
+<div class="tools">
+  <button id="btnVault">同步设置</button>
+  <button id="btnSync">立即同步</button>
+</div>
+<div class="vset" id="vset" hidden>
+  <div class="note" style="margin:0">把 health-vault 的 token 粘在这里。它只存在这台设备的浏览器里,不会进任何文件,也不会出现在公开网页上。</div>
+  <input id="vaultToken" type="password" autocomplete="off" placeholder="github_pat_...">
+  <div class="tools">
+    <button id="btnVaultSave">保存并同步</button>
+    <button id="btnVaultClear">清除 token</button>
+  </div>
+</div>
 
 <div class="note"><b>底线:</b>重修一门都不能再挂。毕业证 = 考研资格,分数再高也换不回来。</div>
 
@@ -265,6 +297,7 @@ function render(bump){
   }).join(''):'<div class="empty">今天还没有记录。<br>点最下面那条「打开计划看一眼」也算一次。</div>';
   renderWeek();
   renderRep();
+  renderHV();
 }
 
 function record(id){
@@ -329,6 +362,114 @@ function renderRep(){
   bk.innerHTML='数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。'+t;
 }
 
+/* ---------- 身体数据:从私有仓库 health-vault 读 ---------- */
+const VKEY='liferpg.vault';
+let V={token:'',data:{},synced:0,error:''};
+try{
+  const rv=localStorage.getItem(VKEY);
+  if(rv){const o=JSON.parse(rv);if(o&&typeof o==='object'){V.token=o.token||'';V.data=o.data||{};V.synced=o.synced||0;}}
+}catch(e){}
+const vsave=function(){try{localStorage.setItem(VKEY,JSON.stringify({token:V.token,data:V.data,synced:V.synced}));}catch(e){}};
+
+const VAULT='https://api.github.com/repos/guangcat/health-vault/contents/data';
+
+function fmtMin(m){
+  if(m===null||m===undefined||m==='')return '—';
+  const n=Math.round(m),h=Math.floor(n/60),mm=n%60;
+  return h?(h+'h'+String(mm).padStart(2,'0')):(mm+' 分钟');
+}
+
+function renderHV(){
+  const el=document.getElementById('hv');
+  const st=document.getElementById('vstat');
+  if(!el)return;
+  const today=day();
+  const keys=Object.keys(V.data||{}).sort().slice(-7);
+  const t=(V.data||{})[today]||null;
+  let html='';
+
+  if(!keys.length){
+    html='<div class="empty">还没有数据。<br>点下面「同步设置」填一次 token,再照 SHORTCUT.md 在手机上建快捷指令。</div>';
+  }else{
+    html+='<div class="hvrow"><span>睡眠</span><b>'+(t?fmtMin(t.sleep_min):'—')+'</b></div>';
+    html+='<div class="hvrow"><span>体重</span><b>'+(t&&t.weight_kg?(t.weight_kg+' kg'):'—')+'</b></div>';
+    html+='<div class="hvrow"><span>运动</span><b>'+(t?fmtMin(t.exercise_min):'—')+'</b></div>';
+
+    const done=function(id){return S.log.some(function(l){return l.d===today&&l.id===id;});};
+    if(t&&t.exercise_min>=20&&!done('vit_sport'))
+      html+='<button class="claim" data-a="vit_sport">健康数据已记录运动 '+Math.round(t.exercise_min)+' 分钟 → 点这里入账 体力 +25</button>';
+    if(t&&t.sleep_min&&!done('vit_sleep'))
+      html+='<button class="claim" data-a="vit_sleep">健康数据已记录睡眠 '+fmtMin(t.sleep_min)+' → 点这里入账 体力 +20</button>';
+
+    html+='<div class="hvmini">'+keys.map(function(k){
+      const d=V.data[k]||{},v=d.sleep_min||0;
+      return '<div class="m"><i style="height:'+Math.min(100,v/600*100)+'%"></i><span>'+k.slice(5)+'</span></div>';
+    }).join('')+'</div>';
+  }
+  el.innerHTML=html;
+
+  if(st){
+    let s='';
+    if(V.error)s='同步异常:'+V.error;
+    else if(V.synced)s='上次同步 '+new Date(V.synced).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    else s='还没同步过';
+    st.textContent=s+(V.token?'':' · 未配置 token');
+  }
+  const inp=document.getElementById('vaultToken');
+  if(inp)inp.placeholder=V.token?'已保存(token 不回显,重新输入可替换)':'github_pat_...';
+}
+
+async function syncVault(silent){
+  if(!V.token){V.error='未配置 token';renderHV();return;}
+  V.error='';
+  try{
+    const H={'Authorization':'Bearer '+V.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+    const r=await fetch(VAULT+'?ref=main&t='+Date.now(),{headers:H});
+    if(!r.ok)throw new Error('列目录 HTTP '+r.status);
+    const list=await r.json();
+    const names=list
+      .filter(function(x){return /^\d{4}-\d{2}-\d{2}\.json$/.test(x.name);})
+      .map(function(x){return x.name;}).sort().slice(-7);
+    const data={};
+    for(const n of names){
+      const rr=await fetch(VAULT+'/'+n+'?ref=main',{headers:H});
+      if(!rr.ok)continue;
+      const j=await rr.json();
+      const raw=(j.content||'').replace(/\s/g,'');
+      if(!raw)continue;
+      const txt=new TextDecoder().decode(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}));
+      try{data[n.replace('.json','')]=JSON.parse(txt);}catch(e){}
+    }
+    V.data=data;V.synced=Date.now();vsave();renderHV();
+    if(!silent)toast('同步完成','#37d6a0');
+  }catch(e){
+    V.error=(e&&e.message)?e.message:'网络失败';
+    renderHV();
+    if(!silent)toast('同步失败','#ff6b7a');
+  }
+}
+
+document.getElementById('hv').addEventListener('click',function(e){
+  const b=e.target.closest('.claim');
+  if(b)record(b.dataset.a);
+});
+document.getElementById('btnVault').addEventListener('click',function(){
+  const p=document.getElementById('vset');
+  p.hidden=!p.hidden;
+});
+document.getElementById('btnSync').addEventListener('click',function(){syncVault(false);});
+document.getElementById('btnVaultSave').addEventListener('click',function(){
+  const v=document.getElementById('vaultToken').value.trim();
+  if(!v){toast('先粘贴 token','#ff6b7a');return;}
+  V.token=v;V.error='';vsave();
+  document.getElementById('vaultToken').value='';
+  document.getElementById('vset').hidden=true;
+  syncVault(false);
+});
+document.getElementById('btnVaultClear').addEventListener('click',function(){
+  V.token='';V.error='';vsave();renderHV();toast('token 已清除');
+});
+
 document.getElementById('acts').addEventListener('click',e=>{
   const el=e.target.closest('.act');if(el)record(el.dataset.id);
 });
@@ -378,6 +519,8 @@ document.getElementById('btnRst').addEventListener('click',()=>{
 });
 
 render();
+
+if(V.token)syncVault(true);
 
 if(typeof navigator!=='undefined'&&'serviceWorker' in navigator
    &&typeof location!=='undefined'&&location.protocol==='https:'){
