@@ -117,6 +117,37 @@ h2:first-child{margin-top:4px}
 .task.done .dot{box-shadow:none;filter:grayscale(.7)}
 .task.done .xp{color:var(--dim)}
 
+/* 今日主线 */
+.focus{background:linear-gradient(180deg,#1d2740,#141a26);border:1px solid rgba(255,207,92,.38);border-radius:16px;padding:15px;position:relative;overflow:hidden;margin-bottom:4px}
+.focus::after{content:"";position:absolute;inset:0;background:radial-gradient(280px 120px at 18% 0,rgba(255,207,92,.13),transparent);pointer-events:none}
+.focus .ft{font-size:10.5px;color:var(--gold);letter-spacing:.16em;font-weight:700}
+.focus .fn{font-size:23px;font-weight:800;margin:9px 0 7px;line-height:1.25;position:relative}
+.focus .fm{font-size:11.5px;color:var(--dim);line-height:1.6;position:relative}
+.focus .fm b{color:var(--gold)}
+.focus .frow2{display:flex;gap:8px;margin-top:13px;position:relative}
+.focus .frow2 button{flex:1;background:rgba(255,207,92,.13);border:1px solid rgba(255,207,92,.45);color:var(--gold);border-radius:10px;padding:10px 0;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer}
+.focus .frow2 button.ghost{background:transparent;border-color:var(--line);color:var(--dim);font-weight:600}
+.focus .frow2 button:active{background:rgba(255,207,92,.24)}
+
+/* 倒计时 */
+.cds{display:flex;gap:8px}
+.cd{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 6px;text-align:center;cursor:pointer;min-width:0}
+.cd b{display:block;font-size:20px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.cd b small{font-size:10px;font-weight:600;color:var(--dim);margin-left:2px}
+.cd span{font-size:10px;color:var(--dim);display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cd.hot b{color:var(--gold)}
+.cd.add{border-style:dashed;color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:12px}
+.cd:active{background:var(--panel2)}
+
+/* 断了的 */
+.gaps{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.gap{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid #1b2431;font-size:13px}
+.gap:last-child{border-bottom:0}
+.gap .gd{width:7px;height:7px;border-radius:50%;flex:none}
+.gap .gn{flex:1;font-weight:600}
+.gap .gv{font-size:11.5px;color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums}
+.gap.bad .gv{color:var(--danger)}
+
 /* 表单 */
 .form{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:10px}
 .frow{display:flex;align-items:center;gap:10px;margin-bottom:9px}
@@ -164,7 +195,7 @@ h2:first-child{margin-top:4px}
     <div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div>
     <div class="chips">
       <div class="chip hot"><b id="streak">0</b><span>连击天数</span></div>
-      <div class="chip"><b id="dday">–</b><span>距四级(预计)</span></div>
+      <div class="chip"><b id="dday">–</b><span id="ddlabel">倒计时</span></div>
       <div class="chip"><b id="todayn">0</b><span>今日记录</span></div>
     </div>
   </div>
@@ -215,13 +246,36 @@ h2:first-child{margin-top:4px}
 
 <!-- ============ 页3:今天 ============ -->
 <section class="page" id="p-today">
+  <div class="focus" id="focus"></div>
+
+  <div class="taskhead">
+    <h2>倒计时</h2>
+    <button class="mini" id="btnCdAdd">+ 添加</button>
+  </div>
+  <div class="cds" id="cds"></div>
+  <div class="form" id="cdForm" hidden>
+    <div class="frow"><label>名称</label><input id="cdName" maxlength="10" placeholder="例如:四级"></div>
+    <div class="frow"><label>日期</label><input id="cdDate" type="date"></div>
+    <div class="tools" style="margin-top:4px">
+      <button id="cdSave">保存</button>
+      <button id="cdCancel">取消</button>
+      <button id="cdDel">删除</button>
+    </div>
+  </div>
+
   <h2>今天</h2>
   <div class="tl" id="tl"></div>
+
+  <h2 id="gapsTitle">断了的</h2>
+  <div class="gaps" id="gaps"></div>
 
   <h2>今日结算</h2>
   <div class="rep" id="rep"></div>
   <button class="copybtn" id="btnCopy">复制今日战报</button>
+</section>
 
+<!-- ============ 页4:设置 ============ -->
+<section class="page" id="p-setup">
   <h2>同步到日历</h2>
   <p class="hubtip">给任务设了「时间」的,会导出成每天重复的日程。日历是<b>单向</b>的:这里是源头,日历只是收件箱——改完任务重新导一次即可。</p>
   <div class="tools" style="margin-top:0">
@@ -243,6 +297,7 @@ h2:first-child{margin-top:4px}
   <button data-p="panel" class="on"><b>◆</b>属性</button>
   <button data-p="tasks"><b>≡</b>任务</button>
   <button data-p="today"><b>◉</b>今天</button>
+  <button data-p="setup"><b>⚙</b>设置</button>
 </nav>
 
 <div id="toast"></div>
@@ -282,10 +337,18 @@ const day=()=>dayOf(new Date());
 const hm=ts=>{const d=new Date(ts);return pad2(d.getHours())+':'+pad2(d.getMinutes());};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+function defaultCds(){
+  const t=new Date();t.setHours(0,0,0,0);
+  let e=nthSat(t.getFullYear(),12,3);
+  if(!e||e<t)e=nthSat(t.getFullYear()+1,12,3);
+  return [{id:'cet4',n:'四级',date:dayOf(e)}];
+}
+
 function blank(){
   const a={};
   CATS.forEach(c=>{a[c.k]=0;});
-  return {attr:a,log:[],days:{},tasks:DEFAULT_TASKS.map(t=>Object.assign({},t)),created:Date.now()};
+  return {attr:a,log:[],days:{},tasks:DEFAULT_TASKS.map(t=>Object.assign({},t)),
+          cds:defaultCds(),focus:{},created:Date.now()};
 }
 
 let S=(function(){
@@ -297,6 +360,9 @@ let S=(function(){
     CATS.forEach(c=>{if(typeof o.attr[c.k]!=='number')o.attr[c.k]=0;});
     o.log=o.log||[];o.days=o.days||{};
     if(!Array.isArray(o.tasks)||!o.tasks.length)o.tasks=DEFAULT_TASKS.map(t=>Object.assign({},t));
+    if(!Array.isArray(o.cds))o.cds=defaultCds();
+    if(!o.focus||typeof o.focus!=='object')o.focus={};
+    if(typeof o.created!=='number')o.created=Date.now();
     return o;
   }catch(e){return blank();}
 })();
@@ -342,11 +408,12 @@ function toast(txt,color){
 }
 
 /* ---------- 页面切换 ---------- */
+const PAGES=['panel','tasks','today','setup'];
 let page='panel';
-try{const u=localStorage.getItem(UIKEY);if(u==='panel'||u==='tasks'||u==='today')page=u;}catch(e){}
+try{const u=localStorage.getItem(UIKEY);if(PAGES.indexOf(u)>=0)page=u;}catch(e){}
 function showPage(p){
   page=p;
-  ['panel','tasks','today'].forEach(k=>{
+  PAGES.forEach(k=>{
     const el=document.getElementById('p-'+k);
     if(el)el.classList.toggle('on',k===p);
   });
@@ -437,7 +504,6 @@ function renderPanel(){
   document.getElementById('pxptxt').textContent=p.rem+' / '+p.need;
   document.getElementById('ptotal').textContent='累计 '+t;
   document.getElementById('streak').textContent=streakOf();
-  document.getElementById('dday').textContent=dday();
 
   const today=day(),rows=S.log.filter(l=>l.d===today);
   document.getElementById('todayn').textContent=rows.length;
@@ -532,11 +598,12 @@ function reportText(){
   rows.forEach(r=>{per[r.c]=(per[r.c]||0)+r.xp;});
   const gains=CATS.filter(c=>per[c.k]).map(c=>c.n+' +'+per[c.k]).join('   ');
   const xp=rows.reduce((s,r)=>s+r.xp,0);
+  const nc=nearestCd();
   return '【'+day()+' 战报】\n'
     +'记录 '+rows.length+' 次 · 今日 +'+xp+' XP\n'
     +(gains||'(今天还没记录)')+'\n'
     +'Lv '+lvOf(total()).lv+'(累计 '+total()+') · 连击 '+streakOf()+' 天\n'
-    +'距四级(预计) '+dday()+' 天';
+    +(nc?('距'+nc.c.n+' '+nc.d+' 天'):'没有倒计时');
 }
 
 function renderToday(){
@@ -567,10 +634,143 @@ function renderToday(){
   bk.innerHTML='数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。'+t2;
 }
 
+/* ---------- 渲染:今日主线 / 倒计时 / 断了的 ---------- */
+function lastDoneTs(id){
+  let t=0;
+  S.log.forEach(l=>{if(l.id===id&&l.ts>t)t=l.ts;});
+  return t;
+}
+const doneToday=t=>S.log.some(l=>l.d===day()&&l.id===t.id);
+
+function gapOf(t){
+  if(doneToday(t))return 0;
+  const base=lastDoneTs(t.id)||S.created||Date.now();
+  const d0=new Date(base);d0.setHours(0,0,0,0);
+  const d1=new Date();d1.setHours(0,0,0,0);
+  return Math.max(0,Math.round((d1-d0)/86400000));
+}
+
+function pickFocus(excludeId){
+  let best=null,bs=-1;
+  S.tasks.forEach(t=>{
+    if(doneToday(t))return;
+    if(excludeId&&t.id===excludeId)return;
+    const s=gapOf(t)*2+t.xp/10;
+    if(s>bs){bs=s;best=t;}
+  });
+  return best;
+}
+
+function focusTask(){
+  const today=day();
+  if(!S.focus||S.focus.d!==today){
+    const t=pickFocus(null);
+    S.focus={d:today,id:t?t.id:''};
+    save();
+    return t;
+  }
+  const t=taskById(S.focus.id);
+  if(!t||doneToday(t)){
+    const n=pickFocus(null);
+    S.focus={d:today,id:n?n.id:''};
+    save();
+    return n;
+  }
+  return t;
+}
+
+function renderFocus(){
+  const el=document.getElementById('focus');
+  if(!el)return;
+  const doneN=S.tasks.filter(doneToday).length;
+  const t=focusTask();
+  if(!t){
+    el.innerHTML='<div class="ft">今日主线</div>'
+      +'<div class="fn">'+(S.tasks.length?'今天的都做完了':'还没有任务')+'</div>'
+      +'<div class="fm">'+(S.tasks.length?(doneN+' / '+S.tasks.length+' 条已打卡'):'先去「任务」页加一条')+'</div>';
+    return;
+  }
+  const g=gapOf(t),c=cat(t.c);
+  el.innerHTML='<div class="ft">今日主线</div>'
+    +'<div class="fn">'+esc(t.n)+'</div>'
+    +'<div class="fm">'+c.n+' +'+t.xp
+      +(g>=2?(' · 已经 <b>'+g+' 天</b>没做了'):'')
+      +(t.d?(' · '+esc(t.d)):'')+'</div>'
+    +'<div class="frow2">'
+      +'<button class="ghost" id="focusSwap">换一条</button>'
+      +'<button id="focusDo">就做这个</button>'
+    +'</div>';
+}
+
+function cdDays(dstr){
+  const d=new Date(dstr+'T00:00:00');d.setHours(0,0,0,0);
+  const t=new Date();t.setHours(0,0,0,0);
+  return Math.round((d-t)/86400000);
+}
+function nearestCd(){
+  let best=null;
+  (S.cds||[]).forEach(c=>{
+    const d=cdDays(c.date);
+    if(d<0)return;
+    if(!best||d<best.d)best={c:c,d:d};
+  });
+  return best;
+}
+function renderCds(){
+  const el=document.getElementById('cds');
+  if(!el)return;
+  const list=(S.cds||[]).slice().sort((a,b)=>(a.date<b.date?-1:1));
+  el.innerHTML=list.map(c=>{
+    const d=cdDays(c.date);
+    return '<div class="cd'+((d>=0&&d<=30)?' hot':'')+'" data-cd="'+c.id+'">'
+      +'<b>'+(d<0?'已过':(d+'<small>天</small>'))+'</b>'
+      +'<span>'+esc(c.n)+'</span></div>';
+  }).join('')+'<div class="cd add" data-cd="">+ 添加</div>';
+
+  const ne=nearestCd();
+  const num=document.getElementById('dday'),lab=document.getElementById('ddlabel');
+  if(num&&lab){
+    if(ne){num.textContent=ne.d;lab.textContent='距'+ne.c.n;}
+    else{num.textContent='—';lab.textContent='暂无倒计时';}
+  }
+}
+
+function renderGaps(){
+  const el=document.getElementById('gaps'),ti=document.getElementById('gapsTitle');
+  if(!el)return;
+  const rows=S.tasks.map(t=>({t:t,g:gapOf(t)}))
+    .filter(x=>x.g>=2).sort((a,b)=>b.g-a.g).slice(0,6);
+  if(ti)ti.textContent='断了的'+(rows.length?(' · '+rows.length):'');
+  if(!rows.length){el.innerHTML='<div class="empty">暂时没有断的</div>';return;}
+  el.innerHTML=rows.map(x=>{
+    const c=cat(x.t.c);
+    return '<div class="gap'+(x.g>=5?' bad':'')+'">'
+      +'<span class="gd" style="background:'+c.c+'"></span>'
+      +'<span class="gn">'+esc(x.t.n)+'</span>'
+      +'<span class="gv">'+x.g+' 天没做</span></div>';
+  }).join('');
+}
+
+let cdEditing=null;
+function openCdForm(c){
+  cdEditing=c?c.id:null;
+  document.getElementById('cdName').value=c?c.n:'';
+  document.getElementById('cdDate').value=c?c.date:'';
+  document.getElementById('cdDel').hidden=!c;
+  document.getElementById('cdForm').hidden=false;
+}
+function closeCdForm(){
+  cdEditing=null;
+  document.getElementById('cdForm').hidden=true;
+}
+
 function render(){
   renderPanel();
   renderTasks();
   renderToday();
+  renderFocus();
+  renderCds();
+  renderGaps();
 }
 
 /* ---------- 日历 ---------- */
@@ -644,6 +844,48 @@ async function shareICS(){
 /* ---------- 事件绑定 ---------- */
 document.querySelectorAll('.tabbar button').forEach(b=>{
   b.addEventListener('click',()=>showPage(b.dataset.p));
+});
+
+document.getElementById('focus').addEventListener('click',function(e){
+  const b=e.target.closest('button');
+  if(!b)return;
+  if(b.id==='focusDo'){
+    const t=focusTask();
+    if(t)record(t.id);
+  }else if(b.id==='focusSwap'){
+    const cur=(S.focus&&S.focus.id)||'';
+    const n=pickFocus(cur);
+    if(n){S.focus={d:day(),id:n.id};save();render();}
+    else toast('没有别的未完成了','#ffd27a');
+  }
+});
+
+document.getElementById('cds').addEventListener('click',function(e){
+  const el=e.target.closest('[data-cd]');
+  if(!el)return;
+  const id=el.dataset.cd;
+  openCdForm(id?(S.cds||[]).find(c=>c.id===id):null);
+});
+document.getElementById('btnCdAdd').addEventListener('click',function(){openCdForm(null);});
+document.getElementById('cdCancel').addEventListener('click',function(){closeCdForm();});
+document.getElementById('cdSave').addEventListener('click',function(){
+  const n=document.getElementById('cdName').value.trim();
+  const d=document.getElementById('cdDate').value;
+  if(!n||!d){toast('名称和日期都要填','#ff6b7a');return;}
+  if(cdEditing){
+    const o=(S.cds||[]).find(c=>c.id===cdEditing);
+    if(o){o.n=n;o.date=d;}
+  }else{
+    S.cds=S.cds||[];
+    S.cds.push({id:'c'+Date.now().toString(36),n:n,date:d});
+  }
+  save();closeCdForm();render();toast(cdEditing?'已修改':'已添加','#37d6a0');
+});
+document.getElementById('cdDel').addEventListener('click',function(){
+  if(!cdEditing)return;
+  if(!confirm('删除这个倒计时?'))return;
+  S.cds=(S.cds||[]).filter(c=>c.id!==cdEditing);
+  save();closeCdForm();render();toast('已删除');
 });
 
 document.getElementById('tasks').addEventListener('click',e=>{
