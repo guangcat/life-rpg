@@ -90,7 +90,11 @@ powershell -ExecutionPolicy Bypass -File _deploy.ps1
 
 改完 `index.html` 后跑一次这个脚本,线上就更新了。手机上强制刷新一次即可。
 
-如果改了 `sw.js` 的缓存列表,**记得同时把 `CACHE` 版本号加一**,否则手机会继续用旧缓存。
+`CACHE` 版本号由脚本**自动**改成当前时间戳,不用手动管。
+
+原因:手机上的 Service Worker 只在 `sw.js` 字节变化时才会更新。如果只改了
+`index.html` 而没动 `sw.js`,手机会一直从旧缓存里读页面,你看到的就是旧版 —— 这个坑踩过一次,
+所以现在每次部署都强制换一次缓存名。
 
 ## 自检
 
