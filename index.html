@@ -96,6 +96,13 @@ h2:first-child{margin-top:4px}
 .taskhead h2{margin:0;flex:1}
 .mini{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer}
 .mini.on{border-color:var(--gold);color:var(--gold)}
+.dcard{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin-bottom:10px}
+.dcard .dt{display:flex;align-items:baseline;gap:5px;font-size:12.5px;color:var(--dim)}
+.dcard .dt b{font-size:20px;font-weight:800;color:var(--txt);line-height:1;font-variant-numeric:tabular-nums}
+.dcard .dt b.done{color:var(--gold)}
+.dcard .dt span{margin-left:auto;font-variant-numeric:tabular-nums}
+.dcard .dbar{height:7px;border-radius:7px;background:#0a0e15;border:1px solid var(--line);overflow:hidden;margin-top:9px}
+.dcard .dbar>i{display:block;height:100%;width:0;border-radius:7px;background:linear-gradient(90deg,#8a6b1f,#ffcf5c);transition:width .45s cubic-bezier(.2,.8,.2,1)}
 .tasks{display:flex;flex-direction:column;gap:8px}
 .task{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;cursor:pointer;transition:transform .1s,background .15s}
 .task:active{transform:scale(.985);background:var(--panel2)}
@@ -176,7 +183,6 @@ h2:first-child{margin-top:4px}
     </div>
   </div>
 
-  <div class="note"><b>底线:</b>重修一门都不能再挂。毕业证 = 考研资格,分数再高也换不回来。</div>
 </section>
 
 <!-- ============ 页2:任务 ============ -->
@@ -186,7 +192,7 @@ h2:first-child{margin-top:4px}
     <button class="mini" id="btnManage">管理</button>
     <button class="mini" id="btnNew">+ 新建</button>
   </div>
-  <p class="hubtip" id="taskTip">点一下任务就记一次。想加自己的任务点「+ 新建」。</p>
+  <div class="dcard" id="doneCard"></div>
 
   <div class="form" id="taskForm" hidden>
     <div class="frow"><label>名称</label><input id="fName" maxlength="20" placeholder="例如:数学一节"></div>
@@ -463,9 +469,13 @@ function renderTasks(){
   document.getElementById('btnManage').textContent=manage?'完成':'管理';
 
   const doneN=S.tasks.filter(t=>doneSet[t.id]).length;
-  document.getElementById('taskTip').textContent=manage
-    ? '管理模式:点任务可以改;右边「删」会永久删除。'
-    : ('今日已完成 '+doneN+'/'+S.tasks.length+' · 做完的会变暗并沉到最下面。点一下记一次,右上「+ 新建」加任务。');
+  const totalN=S.tasks.length;
+  const xpToday=S.log.filter(l=>l.d===today).reduce((s,l)=>s+l.xp,0);
+  const pct=totalN?Math.round(doneN/totalN*100):0;
+  document.getElementById('doneCard').innerHTML=
+    '<div class="dt"><b class="'+((totalN&&doneN>=totalN)?'done':'')+'">'+doneN+'</b>/ '+totalN+' 条已完成'
+    +'<span>'+(manage?'点任务可改':('今日 +'+xpToday+' XP'))+'</span></div>'
+    +'<div class="dbar"><i style="width:'+pct+'%"></i></div>';
 
   const box=document.getElementById('tasks');
   if(!S.tasks.length){
