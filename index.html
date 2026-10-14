@@ -346,6 +346,11 @@ const DEFAULT_TASKS=[
   {id:'min_open',  n:'打开计划看一眼',c:'intel',xp:8,  d:'最低成本入口,用来续连击', t:''}
 ];
 
+/* 演示模式专用的任务表:去掉带「重修 / 免听」字样的两条。
+   把手机递给朋友看时,这两条一眼就能看出私事,不该出现在演示里。 */
+const DEMO_HIDE=['grad_class','grad_intel'];
+const DEMO_TASKS=DEFAULT_TASKS.filter(t=>DEMO_HIDE.indexOf(t.id)<0);
+
 const need=lv=>100+(lv-1)*60;
 function lvOf(xp){let lv=1,r=xp;while(r>=need(lv)){r-=need(lv);lv++;}return{lv,rem:r,need:need(lv)};}
 const cat=k=>CATS.find(c=>c.k===k)||CATS[0];
@@ -375,15 +380,18 @@ function demoState(){
   const s=blank();
   const now=new Date();now.setHours(0,0,0,0);
   const skip=[3,4,5,6,17];
-  const T=DEFAULT_TASKS;
+  const T=DEMO_TASKS.slice().sort((a,b)=>b.xp-a.xp);   // 经验高的排前面,每天轮着取
+  const HOLD={math_block:[0,1,2,3]};                    // 这几天故意不做数学,好让「今日主线」有话说
+  s.tasks=DEMO_TASKS.map(t=>Object.assign({},t));
   for(let i=39;i>=0;i--){
     if(skip.indexOf(i)>=0)continue;
     const d=new Date(now.getTime());d.setDate(now.getDate()-i);
     const k=dayOf(d);
-    const n=(i%3===0)?7:((i%3===1)?4:5);
+    const n=(i%3===0)?6:((i%3===1)?4:5);
     s.days[k]={n:0,xp:0};
     for(let j=0;j<n;j++){
-      const t=T[(i*3+j*7)%T.length];
+      const t=T[(i*2+j+2)%T.length];
+      if(HOLD[t.id]&&HOLD[t.id].indexOf(i)>=0)continue;
       s.days[k].n++;
       s.days[k].xp+=t.xp;
       s.attr[t.c]+=t.xp;
