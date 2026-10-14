@@ -190,7 +190,8 @@ h2:first-child{margin-top:4px}
 
 <div class="demobar" id="demobar" hidden>
   <b>演示模式</b> · 数据是假的,不会写进你的存档
-  <a href="./">退出演示</a>
+  <span id="demobarHint" hidden>关掉页面即可退出</span>
+  <a href="./" id="demobarLink">退出演示</a>
 </div>
 
 <!-- ============ 页1:属性 ============ -->
@@ -301,9 +302,12 @@ h2:first-child{margin-top:4px}
   </div>
   <div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。</div>
 
+  <div id="demoBlock">
   <h2>演示</h2>
   <div class="tools" style="margin-top:0">
-    <button id="btnDemo">进入演示模式</button>
+    <button id="btnDemo">演示模式</button>
+    <button id="btnDemoLock">演示 · 锁住退出</button>
+  </div>
   </div>
 </section>
 
@@ -317,9 +321,16 @@ h2:first-child{margin-top:4px}
 <div id="toast"></div>
 
 <script>
-/* 演示模式:URL 带 ?demo 时用一份假数据,并且存到另一个键、且完全不落盘。
-   这样把手机递给别人点几下,不会污染自己的记录。 */
-const DEMO=(typeof location!=='undefined'&&/[?&]demo(=1)?(&|$)/.test(location.search||''));
+/* URL 标志位。抽成函数是为了能在自检里直接喂字符串测,不依赖 location。 */
+function queryFlag(name,search){
+  const s=(search!==undefined)?search:((typeof location!=='undefined'&&location.search)||'');
+  return new RegExp('[?&]'+name+'(=1)?(&|$)').test(s);
+}
+/* 演示模式:?demo=1 用一份假数据,存到另一个键、且完全不落盘,把手机递给别人点也不会污染记录。
+   ?demo=1&lock=1 是"锁住的演示":不显示退出入口,而且进入时用 location.replace
+   把真实 App 的历史记录顶掉,连返回键都回不到真实数据。 */
+const DEMO=queryFlag('demo');
+const DEMO_LOCK=DEMO&&queryFlag('lock');
 const KEY=DEMO?'liferpg.demo':'liferpg.v1';
 const UIKEY=DEMO?'liferpg.demo.ui':'liferpg.ui';
 
@@ -1043,9 +1054,18 @@ if(DEMO){
   document.getElementById('dataTools').hidden=true;
   document.getElementById('bknote').hidden=true;
   document.getElementById('btnDemo').textContent='退出演示';
+  if(DEMO_LOCK){
+    document.getElementById('demobarLink').hidden=true;
+    document.getElementById('demobarHint').hidden=false;
+    document.getElementById('demoBlock').hidden=true;
+  }
 }
 document.getElementById('btnDemo').addEventListener('click',function(){
   location.href=DEMO?'./':'?demo=1';
+});
+document.getElementById('btnDemoLock').addEventListener('click',function(){
+  // replace 而不是 href:把真实 App 那条历史记录顶掉,返回键就回不到真实数据
+  location.replace('?demo=1&lock=1');
 });
 
 showPage(page);
