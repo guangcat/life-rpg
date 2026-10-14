@@ -56,11 +56,11 @@ h2:first-child{margin-top:4px}
 .hud-title{font-size:12px;color:var(--dim);margin-left:auto}
 .bar{height:9px;border-radius:9px;background:#0a0e15;border:1px solid var(--line);overflow:hidden;margin:12px 0 6px}
 .bar>i{display:block;height:100%;width:0;border-radius:9px;transition:width .45s cubic-bezier(.2,.8,.2,1);background:linear-gradient(90deg,#8a6b1f,#ffcf5c)}
-.hud-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--dim)}
+.hud-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim)}
 .chips{display:flex;gap:8px;margin-top:12px}
 .chip{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 8px;text-align:center}
 .chip b{display:block;font-size:17px;font-weight:800;line-height:1.25}
-.chip span{font-size:10px;color:var(--dim)}
+.chip span{font-size:11px;color:var(--dim)}
 .chip.hot b{color:var(--gold)}
 
 /* 属性卡 */
@@ -68,10 +68,10 @@ h2:first-child{margin-top:4px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 11px;position:relative;overflow:hidden}
 .card .glyph{position:absolute;right:8px;top:4px;font-size:26px;opacity:.09;font-weight:800}
 .card h3{margin:0;font-size:13px;font-weight:700}
-.card .cval{font-size:11px;color:var(--dim);margin-top:1px}
+.card .cval{font-size:11.5px;color:var(--dim);margin-top:1px}
 .card .cbar{height:5px;border-radius:5px;background:#0a0e15;overflow:hidden;margin:8px 0 5px}
 .card .cbar>i{display:block;height:100%;width:0;border-radius:5px;transition:width .45s cubic-bezier(.2,.8,.2,1)}
-.card .foot{font-size:10px;color:var(--dim);display:flex;justify-content:space-between}
+.card .foot{font-size:11px;color:var(--dim);display:flex;justify-content:space-between}
 .card.risk{border-color:rgba(255,107,122,.5)}
 .card.risk h3{color:var(--danger)}
 .card.bump{animation:bump .45s}
@@ -86,10 +86,13 @@ h2:first-child{margin-top:4px}
 .hmgrid i.l2{background:#8a6b1f}
 .hmgrid i.l3{background:#c9a03a}
 .hmgrid i.l4{background:#ffcf5c;box-shadow:0 0 7px rgba(255,207,92,.5)}
-.hmlegend{display:flex;align-items:center;gap:6px;margin-top:11px;font-size:10.5px;color:var(--dim)}
+.hmlegend{display:flex;align-items:center;gap:6px;margin-top:11px;font-size:11.5px;color:var(--dim)}
 .hmlegend .sw{display:flex;gap:3px}
 .hmlegend .sw b{width:11px;height:11px;border-radius:3px;display:block}
 .hmlegend #hmstat{margin-left:auto;font-variant-numeric:tabular-nums}
+.hmdetail{margin-top:9px;padding-top:9px;border-top:1px solid #1b2431;font-size:11.5px;color:var(--txt);font-variant-numeric:tabular-nums}
+.hmdetail[hidden]{display:none}
+.hmgrid i.sel{outline:1px solid var(--gold);outline-offset:1px}
 
 /* 任务 */
 .taskhead{display:flex;align-items:center;gap:8px;margin:4px 0 10px}
@@ -109,7 +112,7 @@ h2:first-child{margin-top:4px}
 .task .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .task .tt{flex:1;min-width:0}
 .task .tt b{display:block;font-size:14.5px;font-weight:600}
-.task .tt i{display:block;font-size:11px;color:var(--dim);font-style:normal;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task .tt i{display:block;font-size:11.5px;color:var(--dim);font-style:normal;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task .xp{font-size:12px;font-weight:800;flex:none}
 .task .del{background:transparent;border:1px solid rgba(255,107,122,.5);color:var(--danger);border-radius:8px;padding:6px 9px;font-size:11px;font-family:inherit;flex:none}
 .task.done{opacity:.42;background:#101620}
@@ -120,7 +123,7 @@ h2:first-child{margin-top:4px}
 /* 今日主线 */
 .focus{background:linear-gradient(180deg,#1d2740,#141a26);border:1px solid rgba(255,207,92,.38);border-radius:16px;padding:15px;position:relative;overflow:hidden;margin-bottom:4px}
 .focus::after{content:"";position:absolute;inset:0;background:radial-gradient(280px 120px at 18% 0,rgba(255,207,92,.13),transparent);pointer-events:none}
-.focus .ft{font-size:10.5px;color:var(--gold);letter-spacing:.16em;font-weight:700}
+.focus .ft{font-size:11.5px;color:var(--gold);letter-spacing:.16em;font-weight:700}
 .focus .fn{font-size:23px;font-weight:800;margin:9px 0 7px;line-height:1.25;position:relative}
 .focus .fm{font-size:11.5px;color:var(--dim);line-height:1.6;position:relative}
 .focus .fm b{color:var(--gold)}
@@ -133,8 +136,8 @@ h2:first-child{margin-top:4px}
 .cds{display:flex;gap:8px}
 .cd{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 6px;text-align:center;cursor:pointer;min-width:0}
 .cd b{display:block;font-size:20px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
-.cd b small{font-size:10px;font-weight:600;color:var(--dim);margin-left:2px}
-.cd span{font-size:10px;color:var(--dim);display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cd b small{font-size:10.5px;font-weight:600;color:var(--dim);margin-left:2px}
+.cd span{font-size:11px;color:var(--dim);display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cd.hot b{color:var(--gold)}
 .cd.add{border-style:dashed;color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:12px}
 .cd:active{background:var(--panel2)}
@@ -145,7 +148,7 @@ h2:first-child{margin-top:4px}
 .gap:last-child{border-bottom:0}
 .gap .gd{width:7px;height:7px;border-radius:50%;flex:none}
 .gap .gn{flex:1;font-weight:600}
-.gap .gv{font-size:11.5px;color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums}
+.gap .gv{font-size:12px;color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums}
 .gap.bad .gv{color:var(--danger)}
 
 /* 表单 */
@@ -153,7 +156,7 @@ h2:first-child{margin-top:4px}
 .frow{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .frow label{width:44px;font-size:12px;color:var(--dim);flex:none}
 .frow input,.frow select{flex:1;width:100%;background:#0a0e15;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:9px 10px;font-size:13px;font-family:inherit;min-width:0}
-.hubtip{font-size:11px;color:var(--dim);line-height:1.7;margin:0 2px 10px}
+.hubtip{font-size:11.5px;color:var(--dim);line-height:1.7;margin:0 2px 10px}
 
 /* 战报 */
 .rep{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;font-size:12.5px;line-height:1.95;white-space:pre-wrap;color:#c9d6e6;font-variant-numeric:tabular-nums}
@@ -164,16 +167,18 @@ h2:first-child{margin-top:4px}
 .tl{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
 .tl .row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #1b2431;font-size:13px}
 .tl .row:last-child{border-bottom:0}
-.tl .row .tm{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+.tl .row .tm{color:var(--dim);font-size:11.5px;font-variant-numeric:tabular-nums;flex:none}
 .tl .row .nm{font-weight:600}
 .tl .row .g{margin-left:auto;font-size:12px;font-weight:800}
+.tl .row .undo{flex:none;background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:7px;width:26px;height:26px;line-height:1;font-size:12px;font-family:inherit;padding:0;cursor:pointer;margin-left:8px}
+.tl .row .undo:active{color:var(--danger);border-color:rgba(255,107,122,.6)}
 .empty{padding:20px 12px;text-align:center;color:var(--dim);font-size:12.5px;line-height:1.8}
 
 /* 工具 */
 .tools{display:flex;gap:8px;margin-top:22px}
 .tools button,.tools label{flex:1;text-align:center;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:11px;padding:11px 0;font-size:12px;font-family:inherit;cursor:pointer}
 .tools button:active,.tools label:active{background:var(--panel2)}
-.note{font-size:11px;color:var(--dim);line-height:1.7;margin:12px 2px 0}
+.note{font-size:11.5px;color:var(--dim);line-height:1.7;margin:12px 2px 0}
 .note b{color:#c9d6e6}
 
 /* 反馈 */
@@ -222,6 +227,7 @@ h2:first-child{margin-top:4px}
       <span>多</span>
       <span id="hmstat">—</span>
     </div>
+    <div class="hmdetail" id="hmdetail" hidden></div>
   </div>
 
 </section>
@@ -282,6 +288,7 @@ h2:first-child{margin-top:4px}
   <h2>今日结算</h2>
   <div class="rep" id="rep"></div>
   <button class="copybtn" id="btnCopy">复制今日战报</button>
+  <button class="copybtn" id="btnShare" style="margin-top:8px">分享战报</button>
 </section>
 
 <!-- ============ 页4:设置 ============ -->
@@ -383,10 +390,16 @@ function defaultCds(){
   return [{id:'cet4',n:'四级',date:dayOf(e)}];
 }
 
+/* 新建任务时带上 added:算「多久没做」要用它,不能拿整个 App 的年龄当基准 */
+const freshTasks=function(){
+  const d=day();
+  return DEFAULT_TASKS.map(function(t){ return Object.assign({},t,{added:d}); });
+};
+
 function blank(){
   const a={};
   CATS.forEach(c=>{a[c.k]=0;});
-  return {attr:a,log:[],days:{},tasks:DEFAULT_TASKS.map(t=>Object.assign({},t)),
+  return {attr:a,log:[],days:{},tasks:freshTasks(),
           cds:defaultCds(),focus:{},sound:true,created:Date.now()};
 }
 
@@ -398,7 +411,9 @@ function demoState(){
   const skip=[3,4,5,6,17];
   const T=DEMO_TASKS.slice().sort((a,b)=>b.xp-a.xp);   // 经验高的排前面,每天轮着取
   const HOLD={math_block:[0,1,2,3]};                    // 这几天故意不做数学,好让「今日主线」有话说
-  s.tasks=DEMO_TASKS.map(t=>Object.assign({},t));
+  s.tasks=DEMO_TASKS.map(function(t){
+    return Object.assign({},t,{added:dayOf(new Date(now.getTime()-40*86400000))});
+  });
   for(let i=39;i>=0;i--){
     if(skip.indexOf(i)>=0)continue;
     const d=new Date(now.getTime());d.setDate(now.getDate()-i);
@@ -429,11 +444,14 @@ let S=(function(){
     if(!o||!o.attr)return blank();
     CATS.forEach(c=>{if(typeof o.attr[c.k]!=='number')o.attr[c.k]=0;});
     o.log=o.log||[];o.days=o.days||{};
-    if(!Array.isArray(o.tasks)||!o.tasks.length)o.tasks=DEFAULT_TASKS.map(t=>Object.assign({},t));
+    if(typeof o.created!=='number')o.created=Date.now();
+    if(!Array.isArray(o.tasks)||!o.tasks.length)o.tasks=freshTasks();
+    /* 老存档的任务没有 added:用 App 创建那天兜底,保持它原来的「多久没做」含义 */
+    const born=dayOf(new Date(o.created));
+    o.tasks.forEach(function(t){ if(!t.added)t.added=born; });
     if(!Array.isArray(o.cds))o.cds=defaultCds();
     if(!o.focus||typeof o.focus!=='object')o.focus={};
     if(typeof o.sound!=='boolean')o.sound=true;
-    if(typeof o.created!=='number')o.created=Date.now();
     return o;
   }catch(e){return blank();}
 })();
@@ -567,6 +585,9 @@ function renderSound(){
 function record(id){
   const t=taskById(id);
   if(!t){toast('任务不存在','#ff6b7a');return;}
+  /* 一天一条只能记一次。否则连点就能刷经验,等级和热力图会一起失真;
+     手滑连点两下也很常见。点错了用「今天」页的撤销,不要靠再点一次。 */
+  if(doneToday(t)){toast('今天已经打过卡了','#ffd27a');return;}
   const before=lvOf(total()).lv;
   S.attr[t.c]=S.attr[t.c]+Number(t.xp||0);
   const d=day(),now=new Date();
@@ -625,18 +646,33 @@ function longestStreak(){
   return best;
 }
 
+/* 手机上 title 属性不会显示,所以格子必须点得动 */
+let hmSel='';
+
 function renderHeat(){
   const el=document.getElementById('hm');
   if(!el)return;
-  el.innerHTML=heatCells().map(c=>{
+  el.innerHTML=heatCells().map(function(c){
     const L=c.future?0:lvlOf(c.xp);
-    let cls='';
-    if(c.future)cls='f';
-    else if(L)cls='l'+L;
-    return '<i class="'+cls+'" title="'+c.k+(c.future?'':(' · '+c.xp+' XP'))+'"></i>';
+    let cls=(c.future?'f':(L?('l'+L):''));
+    if(c.k===hmSel)cls+=' sel';
+    return '<i class="'+cls+'" data-d="'+c.k+'" title="'+c.k+(c.future?'':(' · '+c.xp+' XP'))+'"></i>';
   }).join('');
   const st=document.getElementById('hmstat');
   if(st)st.textContent='共打卡 '+activeKeys().length+' 天 · 最长连续 '+longestStreak()+' 天';
+  renderHeatDetail();
+}
+
+function renderHeatDetail(){
+  const el=document.getElementById('hmdetail');
+  if(!el)return;
+  if(!hmSel){el.hidden=true;el.textContent='';return;}
+  const d=S.days[hmSel];
+  const rows=S.log.filter(function(l){return l.d===hmSel;});
+  el.textContent=hmSel+((d&&d.n)
+    ? (' · '+d.n+' 条记录 · +'+d.xp+' XP'+(rows.length?(' · 最后一条 '+rows[rows.length-1].tm):''))
+    : ' · 没有记录');
+  el.hidden=false;
 }
 
 function renderPanel(){
@@ -749,13 +785,16 @@ function reportText(){
 }
 
 function renderToday(){
-  const today=day(),rows=S.log.filter(l=>l.d===today);
+  const today=day();
+  const rows=S.log.map(function(l,i){return {l:l,i:i};})
+                  .filter(function(x){return x.l.d===today;});
   document.getElementById('tl').innerHTML=rows.length
-    ? rows.slice().reverse().map(r=>{
-        const c=cat(r.c);
+    ? rows.slice().reverse().map(function(x){
+        const r=x.l,c=cat(r.c);
         return '<div class="row"><span class="tm">'+r.tm+'</span>'
           +'<span class="nm">'+esc(r.n)+'</span>'
-          +'<span class="g" style="color:'+c.c+'">'+c.n+' +'+r.xp+'</span></div>';
+          +'<span class="g" style="color:'+c.c+'">'+c.n+' +'+r.xp+'</span>'
+          +'<button class="undo" data-i="'+x.i+'" title="撤销">✕</button></div>';
       }).join('')
     : '<div class="empty">今天还没有记录。<br>去「任务」页点一下任意一条。</div>';
 
@@ -786,7 +825,12 @@ const doneToday=t=>S.log.some(l=>l.d===day()&&l.id===t.id);
 
 function gapOf(t){
   if(doneToday(t))return 0;
-  const base=lastDoneTs(t.id)||S.created||Date.now();
+  let base=lastDoneTs(t.id);
+  if(!base&&t.added){
+    const a=new Date(t.added+'T00:00:00');
+    if(!isNaN(a.getTime()))base=a.getTime();
+  }
+  if(!base)base=S.created||Date.now();
   const d0=new Date(base);d0.setHours(0,0,0,0);
   const d1=new Date();d1.setHours(0,0,0,0);
   return Math.max(0,Math.round((d1-d0)/86400000));
@@ -914,6 +958,22 @@ function render(){
   renderCds();
   renderGaps();
   renderSound();
+}
+
+/* 撤销一条记录:三处必须同时回滚(属性经验 / 当天 days / log),漏一处统计就长期偏掉 */
+function undoLog(i){
+  const l=S.log[i];
+  if(!l)return;
+  S.log.splice(i,1);
+  S.attr[l.c]=Math.max(0,(S.attr[l.c]||0)-l.xp);
+  const d=S.days[l.d];
+  if(d){
+    d.n=Math.max(0,d.n-1);
+    d.xp=Math.max(0,d.xp-l.xp);
+    if(d.n<=0)delete S.days[l.d];
+  }
+  save();
+  render();
 }
 
 /* ---------- 日历 ---------- */
@@ -1066,13 +1126,13 @@ document.getElementById('fSave').addEventListener('click',()=>{
     const o=taskById(editing);
     if(o){o.n=n;o.c=c;o.xp=xp;o.t=t;o.d=d;}
   }else{
-    S.tasks.push({id:'t'+Date.now().toString(36),n:n,c:c,xp:xp,t:t,d:d});
+    S.tasks.push({id:'t'+Date.now().toString(36),n:n,c:c,xp:xp,t:t,d:d,added:day()});
   }
   save();closeForm();render();toast(editing?'已修改':'已添加','#37d6a0');
 });
 document.getElementById('btnResetTasks').addEventListener('click',()=>{
   if(!confirm('把任务列表恢复成默认的 11 条?你自己加的任务会消失,历史记录不受影响。'))return;
-  S.tasks=DEFAULT_TASKS.map(t=>Object.assign({},t));save();renderTasks();toast('已恢复默认');
+  S.tasks=freshTasks();save();renderTasks();toast('已恢复默认');
 });
 
 document.getElementById('btnCopy').addEventListener('click',function(){
@@ -1112,7 +1172,7 @@ document.getElementById('fileImp').addEventListener('change',e=>{
       S=o;
       CATS.forEach(c=>{if(typeof S.attr[c.k]!=='number')S.attr[c.k]=0;});
       S.log=S.log||[];S.days=S.days||{};
-      if(!Array.isArray(S.tasks)||!S.tasks.length)S.tasks=DEFAULT_TASKS.map(t=>Object.assign({},t));
+      if(!Array.isArray(S.tasks)||!S.tasks.length)S.tasks=freshTasks();
       save();render();toast('导入成功','#37d6a0');
     }catch(err){toast('这个文件读不了','#ff6b7a');}
   };
@@ -1150,6 +1210,31 @@ document.getElementById('btnSound').addEventListener('click',function(){
   S.sound=!S.sound;
   save();renderSound();
   if(S.sound)playAchievement();
+});
+document.getElementById('tl').addEventListener('click',function(e){
+  const b=e.target.closest('.undo');
+  if(!b)return;
+  const i=Number(b.dataset.i);
+  const l=S.log[i];
+  if(!l)return;
+  if(!confirm('撤销「'+l.n+'」这一条?会退回 '+l.xp+' 经验。'))return;
+  const nm=l.n;
+  undoLog(i);
+  toast('已撤销 '+nm);
+});
+document.getElementById('hm').addEventListener('click',function(e){
+  const c=e.target.closest('[data-d]');
+  if(!c)return;
+  hmSel=(hmSel===c.dataset.d)?'':c.dataset.d;
+  renderHeat();
+});
+document.getElementById('btnShare').addEventListener('click',function(){
+  const t=reportText();
+  if(typeof navigator!=='undefined'&&navigator.share){
+    navigator.share({title:'今日战报',text:t}).catch(function(){});
+  }else{
+    toast('这台设备不支持分享','#ff6b7a');
+  }
 });
 
 showPage(page);

@@ -1,4 +1,4 @@
-const CACHE = 'liferpg-20261014161739';
+const CACHE = 'liferpg-20261014163127';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png'
