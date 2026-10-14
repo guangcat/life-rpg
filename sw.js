@@ -1,4 +1,4 @@
-const CACHE = 'liferpg-v6';
+const CACHE = 'liferpg-v7';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png'

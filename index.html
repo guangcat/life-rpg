@@ -177,12 +177,21 @@ h2:first-child{margin-top:4px}
 .note b{color:#c9d6e6}
 
 /* 反馈 */
+.demobar{display:flex;align-items:center;gap:8px;background:rgba(255,207,92,.14);border:1px solid rgba(255,207,92,.45);color:var(--gold);border-radius:11px;padding:9px 12px;font-size:11.5px;margin-bottom:12px}
+.demobar b{font-weight:800}
+.demobar a{margin-left:auto;color:var(--gold);text-decoration:underline;flex:none}
+.demobar[hidden]{display:none}
 #toast{position:fixed;left:50%;bottom:calc(var(--tabh) + env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);pointer-events:none;z-index:50;display:flex;flex-direction:column;gap:6px;align-items:center}
 #toast div{background:rgba(20,26,38,.96);border:1px solid var(--line);border-radius:11px;padding:9px 15px;font-size:13px;font-weight:700;animation:rise 1.5s ease-out forwards;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 @keyframes rise{0%{opacity:0;transform:translateY(14px) scale(.94)}18%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-26px)}}
 </style>
 </head>
 <body>
+
+<div class="demobar" id="demobar" hidden>
+  <b>演示模式</b> · 数据是假的,不会写进你的存档
+  <a href="./">退出演示</a>
+</div>
 
 <!-- ============ 页1:属性 ============ -->
 <section class="page" id="p-panel">
@@ -285,12 +294,17 @@ h2:first-child{margin-top:4px}
   <div class="note" id="icsNote">还没有设时间的任务。</div>
 
   <h2>数据</h2>
-  <div class="tools" style="margin-top:0">
+  <div class="tools" style="margin-top:0" id="dataTools">
     <button id="btnExp">导出备份</button>
     <label>导入备份<input type="file" id="fileImp" accept=".json,application/json" hidden></label>
     <button id="btnRst">清空</button>
   </div>
   <div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。</div>
+
+  <h2>演示</h2>
+  <div class="tools" style="margin-top:0">
+    <button id="btnDemo">进入演示模式</button>
+  </div>
 </section>
 
 <nav class="tabbar">
@@ -303,7 +317,11 @@ h2:first-child{margin-top:4px}
 <div id="toast"></div>
 
 <script>
-const KEY='liferpg.v1', UIKEY='liferpg.ui';
+/* 演示模式:URL 带 ?demo 时用一份假数据,并且存到另一个键、且完全不落盘。
+   这样把手机递给别人点几下,不会污染自己的记录。 */
+const DEMO=(typeof location!=='undefined'&&/[?&]demo(=1)?(&|$)/.test(location.search||''));
+const KEY=DEMO?'liferpg.demo':'liferpg.v1';
+const UIKEY=DEMO?'liferpg.demo.ui':'liferpg.ui';
 
 const CATS=[
   {k:'math', n:'数学', c:'#4f8cff', g:'∑'},
@@ -351,8 +369,36 @@ function blank(){
           cds:defaultCds(),focus:{},created:Date.now()};
 }
 
+/* 造一份可看的假数据:近 40 天里留两段空档,今天已经打了 5 条卡。
+   完全是确定性的,所以每次进演示模式看到的样子一样。 */
+function demoState(){
+  const s=blank();
+  const now=new Date();now.setHours(0,0,0,0);
+  const skip=[3,4,5,6,17];
+  const T=DEFAULT_TASKS;
+  for(let i=39;i>=0;i--){
+    if(skip.indexOf(i)>=0)continue;
+    const d=new Date(now.getTime());d.setDate(now.getDate()-i);
+    const k=dayOf(d);
+    const n=(i%3===0)?7:((i%3===1)?4:5);
+    s.days[k]={n:0,xp:0};
+    for(let j=0;j<n;j++){
+      const t=T[(i*3+j*7)%T.length];
+      s.days[k].n++;
+      s.days[k].xp+=t.xp;
+      s.attr[t.c]+=t.xp;
+      const hh=6+j*2;
+      s.log.push({d:k,tm:pad2(hh)+':'+pad2((i*7+j*13)%60),
+                  id:t.id,n:t.n,c:t.c,xp:t.xp,ts:d.getTime()+hh*3600000});
+    }
+  }
+  s.created=now.getTime()-40*86400000;
+  return s;
+}
+
 let S=(function(){
   try{
+    if(DEMO)return demoState();
     const r=localStorage.getItem(KEY);
     if(!r)return blank();
     const o=JSON.parse(r);
@@ -367,7 +413,7 @@ let S=(function(){
   }catch(e){return blank();}
 })();
 
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
+const save=()=>{if(DEMO)return;try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
 const total=()=>CATS.reduce((s,c)=>s+S.attr[c.k],0);
 const taskById=id=>S.tasks.find(t=>t.id===id);
 
@@ -419,7 +465,7 @@ function showPage(p){
   });
   document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
   window.scrollTo(0,0);
-  try{localStorage.setItem(UIKEY,p);}catch(e){}
+  if(!DEMO){try{localStorage.setItem(UIKEY,p);}catch(e){}}
 }
 
 /* ---------- 记录一次 ---------- */
@@ -983,6 +1029,17 @@ document.getElementById('btnRst').addEventListener('click',()=>{
 
 /* ---------- 启动 ---------- */
 fillAttrSelect();
+
+if(DEMO){
+  document.getElementById('demobar').hidden=false;
+  document.getElementById('dataTools').hidden=true;
+  document.getElementById('bknote').hidden=true;
+  document.getElementById('btnDemo').textContent='退出演示';
+}
+document.getElementById('btnDemo').addEventListener('click',function(){
+  location.href=DEMO?'./':'?demo=1';
+});
+
 showPage(page);
 render();
 
