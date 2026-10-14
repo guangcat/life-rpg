@@ -77,12 +77,19 @@ h2:first-child{margin-top:4px}
 .card.bump{animation:bump .45s}
 @keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.045)}100%{transform:scale(1)}}
 
-/* 近 7 天 */
-.wk{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px;height:74px}
-.wk .d{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px}
-.wk .d i{display:block;width:100%;border-radius:4px;background:linear-gradient(180deg,#4f8cff,#2f5fb0);min-height:3px;transition:height .4s}
-.wk .d.today i{background:linear-gradient(180deg,#ffcf5c,#8a6b1f)}
-.wk .d span{font-size:9px;color:var(--dim);white-space:nowrap}
+/* 热力图 */
+.hm{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px}
+.hmgrid{display:grid;grid-auto-flow:column;grid-template-columns:repeat(16,1fr);grid-template-rows:repeat(7,1fr);gap:3px;aspect-ratio:16/7}
+.hmgrid i{display:block;border-radius:3px;background:#161d29}
+.hmgrid i.f{background:#0f141d}
+.hmgrid i.l1{background:#4a3a17}
+.hmgrid i.l2{background:#8a6b1f}
+.hmgrid i.l3{background:#c9a03a}
+.hmgrid i.l4{background:#ffcf5c;box-shadow:0 0 7px rgba(255,207,92,.5)}
+.hmlegend{display:flex;align-items:center;gap:6px;margin-top:11px;font-size:10.5px;color:var(--dim)}
+.hmlegend .sw{display:flex;gap:3px}
+.hmlegend .sw b{width:11px;height:11px;border-radius:3px;display:block}
+.hmlegend #hmstat{margin-left:auto;font-variant-numeric:tabular-nums}
 
 /* 任务 */
 .taskhead{display:flex;align-items:center;gap:8px;margin:4px 0 10px}
@@ -98,7 +105,10 @@ h2:first-child{margin-top:4px}
 .task .tt i{display:block;font-size:11px;color:var(--dim);font-style:normal;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task .xp{font-size:12px;font-weight:800;flex:none}
 .task .del{background:transparent;border:1px solid rgba(255,107,122,.5);color:var(--danger);border-radius:8px;padding:6px 9px;font-size:11px;font-family:inherit;flex:none}
-.task .done{opacity:.45}
+.task.done{opacity:.42;background:#101620}
+.task.done .tt b{color:var(--dim)}
+.task.done .dot{box-shadow:none;filter:grayscale(.7)}
+.task.done .xp{color:var(--dim)}
 
 /* 表单 */
 .form{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:10px}
@@ -155,8 +165,16 @@ h2:first-child{margin-top:4px}
   <h2>属性面板</h2>
   <div class="attrs" id="attrs"></div>
 
-  <h2>近 7 天</h2>
-  <div class="wk" id="wk"></div>
+  <h2>热力图 · 近 16 周</h2>
+  <div class="hm">
+    <div class="hmgrid" id="hm"></div>
+    <div class="hmlegend">
+      <span>少</span>
+      <span class="sw"><b style="background:#161d29"></b><b style="background:#4a3a17"></b><b style="background:#8a6b1f"></b><b style="background:#c9a03a"></b><b style="background:#ffcf5c"></b></span>
+      <span>多</span>
+      <span id="hmstat">—</span>
+    </div>
+  </div>
 
   <div class="note"><b>底线:</b>重修一门都不能再挂。毕业证 = 考研资格,分数再高也换不回来。</div>
 </section>
@@ -349,14 +367,61 @@ function record(id){
 }
 
 /* ---------- 渲染:属性 ---------- */
-function last7(){
+const HM_WEEKS=16;
+
+function heatCells(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const dow=(today.getDay()+6)%7;                 // 0 = 周一
+  const start=new Date(today);
+  start.setDate(start.getDate()-dow-(HM_WEEKS-1)*7);
   const out=[];
-  for(let i=6;i>=0;i--){
-    const d=new Date();d.setDate(d.getDate()-i);
-    const k=dayOf(d),rec=S.days[k];
-    out.push({k:k,label:(d.getMonth()+1)+'/'+d.getDate(),xp:rec?rec.xp:0,today:i===0});
+  for(let i=0;i<HM_WEEKS*7;i++){
+    const d=new Date(start.getTime());
+    d.setDate(start.getDate()+i);
+    const k=dayOf(d);
+    const future=d.getTime()>today.getTime();
+    out.push({k:k,future:future,xp:(!future&&S.days[k])?S.days[k].xp:0});
   }
   return out;
+}
+
+function lvlOf(xp){
+  if(!xp)return 0;
+  if(xp<=30)return 1;
+  if(xp<=70)return 2;
+  if(xp<=140)return 3;
+  return 4;
+}
+
+function activeKeys(){
+  return Object.keys(S.days)
+    .filter(k=>S.days[k]&&S.days[k].n>0)
+    .sort();
+}
+
+function longestStreak(){
+  let best=0,cur=0,prev=null;
+  activeKeys().forEach(k=>{
+    const d=new Date(k+'T00:00:00');
+    cur=(prev&&Math.round((d-prev)/86400000)===1)?cur+1:1;
+    if(cur>best)best=cur;
+    prev=d;
+  });
+  return best;
+}
+
+function renderHeat(){
+  const el=document.getElementById('hm');
+  if(!el)return;
+  el.innerHTML=heatCells().map(c=>{
+    const L=c.future?0:lvlOf(c.xp);
+    let cls='';
+    if(c.future)cls='f';
+    else if(L)cls='l'+L;
+    return '<i class="'+cls+'" title="'+c.k+(c.future?'':(' · '+c.xp+' XP'))+'"></i>';
+  }).join('');
+  const st=document.getElementById('hmstat');
+  if(st)st.textContent='共打卡 '+activeKeys().length+' 天 · 最长连续 '+longestStreak()+' 天';
 }
 
 function renderPanel(){
@@ -383,11 +448,7 @@ function renderPanel(){
       +'</div>';
   }).join('');
 
-  const w=last7(),mx=Math.max(10,Math.max.apply(null,w.map(d=>d.xp)));
-  document.getElementById('wk').innerHTML=w.map(d=>
-    '<div class="d'+(d.today?' today':'')+'">'
-    +'<i style="height:'+Math.round(d.xp/mx*100)+'%"></i>'
-    +'<span>'+d.label+'</span></div>').join('');
+  renderHeat();
 }
 
 /* ---------- 渲染:任务 ---------- */
@@ -395,22 +456,38 @@ let manage=false,editing=null;
 
 function renderTasks(){
   const today=day();
+  const doneSet={};
+  S.log.forEach(l=>{if(l.d===today)doneSet[l.id]=1;});
+
   document.getElementById('btnManage').classList.toggle('on',manage);
   document.getElementById('btnManage').textContent=manage?'完成':'管理';
+
+  const doneN=S.tasks.filter(t=>doneSet[t.id]).length;
   document.getElementById('taskTip').textContent=manage
     ? '管理模式:点任务可以改;右边「删」会永久删除。'
-    : '点一下任务就记一次。想加自己的任务点「+ 新建」。';
+    : ('今日已完成 '+doneN+'/'+S.tasks.length+' · 做完的会变暗并沉到最下面。点一下记一次,右上「+ 新建」加任务。');
 
   const box=document.getElementById('tasks');
   if(!S.tasks.length){
     box.innerHTML='<div class="empty">还没有任务。<br>点右上角「+ 新建」加一个。</div>';
     return;
   }
-  box.innerHTML=S.tasks.map(t=>{
+
+  // 未完成的在上面,已完成的沉到最下面;组内保持原顺序
+  const list=S.tasks
+    .map((t,i)=>({t:t,i:i}))
+    .sort((a,b)=>{
+      const da=doneSet[a.t.id]?1:0,db=doneSet[b.t.id]?1:0;
+      if(da!==db)return da-db;
+      return a.i-b.i;
+    })
+    .map(x=>x.t);
+
+  box.innerHTML=list.map(t=>{
     const c=cat(t.c);
-    const doneToday=S.log.some(l=>l.d===today&&l.id===t.id);
+    const done=!!doneSet[t.id];
     const meta=[t.d,t.t?('每天 '+t.t):''].filter(Boolean).join(' · ');
-    return '<div class="task'+(doneToday?' done':'')+'" data-id="'+t.id+'">'
+    return '<div class="task'+(done?' done':'')+'" data-id="'+t.id+'">'
       +'<span class="dot" style="background:'+c.c+';box-shadow:0 0 10px '+c.c+'66"></span>'
       +'<span class="tt"><b>'+esc(t.n)+'</b><i>'+esc(meta)+'</i></span>'
       +'<span class="xp" style="color:'+c.c+'">+'+t.xp+'</span>'
