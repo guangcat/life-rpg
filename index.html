@@ -302,6 +302,11 @@ h2:first-child{margin-top:4px}
   </div>
   <div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。</div>
 
+  <h2>音效</h2>
+  <div class="tools" style="margin-top:0">
+    <button id="btnSound">完成音效:开</button>
+  </div>
+
   <div id="demoBlock">
   <h2>演示</h2>
   <div class="tools" style="margin-top:0">
@@ -382,7 +387,7 @@ function blank(){
   const a={};
   CATS.forEach(c=>{a[c.k]=0;});
   return {attr:a,log:[],days:{},tasks:DEFAULT_TASKS.map(t=>Object.assign({},t)),
-          cds:defaultCds(),focus:{},created:Date.now()};
+          cds:defaultCds(),focus:{},sound:true,created:Date.now()};
 }
 
 /* 造一份可看的假数据:近 40 天里留两段空档,今天已经打了 5 条卡。
@@ -427,6 +432,7 @@ let S=(function(){
     if(!Array.isArray(o.tasks)||!o.tasks.length)o.tasks=DEFAULT_TASKS.map(t=>Object.assign({},t));
     if(!Array.isArray(o.cds))o.cds=defaultCds();
     if(!o.focus||typeof o.focus!=='object')o.focus={};
+    if(typeof o.sound!=='boolean')o.sound=true;
     if(typeof o.created!=='number')o.created=Date.now();
     return o;
   }catch(e){return blank();}
@@ -487,6 +493,76 @@ function showPage(p){
   if(!DEMO){try{localStorage.setItem(UIKEY,p);}catch(e){}}
 }
 
+/* ---------- 完成音效 ---------- */
+/* 用 Web Audio 现场合成一个上行三音的「成就」音。好处:不需要任何音频文件,
+   离线也能响,也没有版权问题。
+   想换成自己的音效(比如 Steam 那个),把 achievement.mp3 / .m4a / .ogg
+   放到和 index.html 同一个目录,会自动优先用它,合成音退化为兜底。 */
+let AC=null,CUSTOM=null,customSrc=null,customTried=false;
+
+function probeCustomSound(){
+  if(customTried||typeof fetch!=='function')return;
+  customTried=true;
+  ['achievement.m4a','achievement.mp3','achievement.ogg'].forEach(function(n){
+    fetch(n,{method:'HEAD'}).then(function(r){
+      if(r.ok&&!customSrc&&typeof Audio!=='undefined'){
+        customSrc=n;
+        CUSTOM=new Audio(n);
+        CUSTOM.preload='auto';
+      }
+    }).catch(function(){});
+  });
+}
+
+/* 把排布逻辑抽出来,这样可以用 OfflineAudioContext 离线渲染验证"真的有声音",
+   而不是只验证"没报错"。 */
+function scheduleAchievement(ctx,t0){
+  const master=ctx.createGain();
+  master.gain.value=0.8;
+  master.connect(ctx.destination);
+  [[659.25,0],[987.77,0.085],[1318.51,0.17]].forEach(function(n){
+    const at=t0+n[1];
+    [[1,0.50],[2,0.14],[3,0.05]].forEach(function(p){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sine';
+      o.frequency.value=n[0]*p[0];
+      if(p[0]>1)o.detune.value=6;
+      g.gain.setValueAtTime(0.0001,at);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002,p[1]),at+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001,at+0.62);
+      o.connect(g);g.connect(master);
+      o.start(at);o.stop(at+0.7);
+    });
+  });
+  return master;
+}
+
+function synthAchievement(){
+  const Ctor=(typeof window!=='undefined')&&(window.AudioContext||window.webkitAudioContext);
+  if(!Ctor)return;
+  try{ if(!AC)AC=new Ctor(); }catch(e){ return; }
+  if(AC.state==='suspended'){ try{ AC.resume(); }catch(e){} }
+  scheduleAchievement(AC,AC.currentTime+0.02);
+}
+
+function playAchievement(){
+  if(!S.sound)return;
+  if(customSrc&&CUSTOM){
+    try{
+      CUSTOM.currentTime=0;
+      const p=CUSTOM.play();
+      if(p&&p.catch)p.catch(function(){ synthAchievement(); });
+      return;
+    }catch(e){}
+  }
+  synthAchievement();
+}
+
+function renderSound(){
+  const b=document.getElementById('btnSound');
+  if(b)b.textContent='完成音效:'+(S.sound?'开':'关');
+}
+
 /* ---------- 记录一次 ---------- */
 function record(id){
   const t=taskById(id);
@@ -498,6 +574,7 @@ function record(id){
   S.days[d]=S.days[d]||{n:0,xp:0};
   S.days[d].n++;S.days[d].xp+=Number(t.xp||0);
   save();
+  playAchievement();
   toast(cat(t.c).n+' +'+t.xp,cat(t.c).c);
   const after=lvOf(total()).lv;
   if(after>before)setTimeout(()=>toast('升级!Lv '+after,'#ffcf5c'),260);
@@ -763,7 +840,7 @@ function renderFocus(){
       +(t.d?(' · '+esc(t.d)):'')+'</div>'
     +'<div class="frow2">'
       +'<button class="ghost" id="focusSwap">换一条</button>'
-      +'<button id="focusDo">就做这个</button>'
+      +'<button id="focusDo">已经完成</button>'
     +'</div>';
 }
 
@@ -836,6 +913,7 @@ function render(){
   renderFocus();
   renderCds();
   renderGaps();
+  renderSound();
 }
 
 /* ---------- 日历 ---------- */
@@ -1048,6 +1126,7 @@ document.getElementById('btnRst').addEventListener('click',()=>{
 
 /* ---------- 启动 ---------- */
 fillAttrSelect();
+probeCustomSound();
 
 if(DEMO){
   document.getElementById('demobar').hidden=false;
@@ -1066,6 +1145,11 @@ document.getElementById('btnDemo').addEventListener('click',function(){
 document.getElementById('btnDemoLock').addEventListener('click',function(){
   // replace 而不是 href:把真实 App 那条历史记录顶掉,返回键就回不到真实数据
   location.replace('?demo=1&lock=1');
+});
+document.getElementById('btnSound').addEventListener('click',function(){
+  S.sound=!S.sound;
+  save();renderSound();
+  if(S.sound)playAchievement();
 });
 
 showPage(page);
