@@ -355,19 +355,34 @@ const CATS=[
   {k:'intel',n:'情报', c:'#5ec8ff', g:'?'}
 ];
 
+/* 任务表版本号。改了下面这张表就要 +1,老存档会走一次 upgrade(),
+   把旧默认任务换成新的,但打卡历史(log / days / attr)一条都不动。 */
+const TASK_SET=2;
+
+/* 任务按真实课表排的时间。t 是开始时间,wd 是星期(1=周一 … 7=周日),
+   不写 wd 就是每天;写了的导出日历时只在那几天重复。 */
 const DEFAULT_TASKS=[
-  {id:'eng_drill', n:'英语一局',      c:'eng',  xp:30, d:'20 分钟:背词 + 一篇精听', t:'07:00'},
+  {id:'eng_main',  n:'背词 25 分钟',  c:'eng',  xp:25, d:'醒来第一件事', t:'07:00'},
+  {id:'eng_drill', n:'精听一篇',      c:'eng',  xp:30, d:'35 分钟,精听或四级阅读', t:'07:25'},
   {id:'eng_words', n:'只背词',        c:'eng',  xp:12, d:'5 分钟也算,重要的是不断', t:''},
-  {id:'math_block',n:'数学一节',      c:'math', xp:40, d:'40 分钟:看课 + 做题', t:'21:00'},
+  {id:'prob_video',n:'概率论看课',    c:'math', xp:25, d:'1.9 倍速,约 1.5 集', t:'20:25'},
+  {id:'math_block',n:'数学看课',      c:'math', xp:40, d:'45 分钟,高数', t:'21:00'},
+  {id:'math_do',   n:'数学做题',      c:'math', xp:35, d:'45 分钟,做题才算数', t:'21:45'},
   {id:'math_fix',  n:'翻昨天错题',    c:'math', xp:15, d:'不想开始就先做这个', t:''},
-  {id:'cs_block',  n:'专业课一节',    c:'cs',   xp:30, d:'数据结构 / 操作系统', t:''},
-  {id:'grad_class',n:'重修课全勤',    c:'grad', xp:20, d:'一节不逃,平时分是免费分', t:''},
+  {id:'prob_makeup',n:'概率论补欠',   c:'math', xp:25, d:'补这周欠的集', t:'09:00', wd:[6]},
+  {id:'prob_quiz', n:'概率论课后题',  c:'math', xp:50, d:'课后题 + 订正', t:'09:00', wd:[7]},
+  {id:'grad_class',n:'上课全勤',      c:'grad', xp:20, d:'一节不逃,平时分是免费分', t:''},
   {id:'grad_hw',   n:'交作业',        c:'grad', xp:15, d:'平时分是白给的', t:''},
   {id:'grad_intel',n:'要考纲/往年题', c:'intel',xp:35, d:'免听课最大的风险是不知道考什么', t:''},
-  {id:'vit_sleep', n:'24:00 前睡',    c:'vit',  xp:20, d:'作息是体力的唯一来源', t:'23:30'},
+  {id:'vit_sleep', n:'23:30 关手机',  c:'vit',  xp:20, d:'作息是体力的唯一来源', t:'23:30'},
   {id:'vit_sport', n:'运动 20 分钟',  c:'vit',  xp:25, d:'体质测试也是学分', t:''},
+  {id:'weekly',    n:'周复盘',        c:'intel',xp:15, d:'填路线图第 9 节', t:'21:30', wd:[7]},
   {id:'min_open',  n:'打开计划看一眼',c:'intel',xp:8,  d:'最低成本入口,用来续连击', t:''}
 ];
+
+/* 第一版那 11 条的 id。升级时整批换掉,不在这个名单里的(用户自己加的)保留。 */
+const V1_IDS=['eng_drill','eng_words','math_block','math_fix','cs_block',
+              'grad_class','grad_hw','grad_intel','vit_sleep','vit_sport','min_open'];
 
 /* 演示模式专用的任务表:去掉带「重修 / 免听」字样的两条。
    把手机递给朋友看时,这两条一眼就能看出私事,不该出现在演示里。 */
@@ -400,7 +415,28 @@ function blank(){
   const a={};
   CATS.forEach(c=>{a[c.k]=0;});
   return {attr:a,log:[],days:{},tasks:freshTasks(),
-          cds:defaultCds(),focus:{},sound:true,created:Date.now()};
+          cds:defaultCds(),focus:{},sound:true,created:Date.now(),tv:TASK_SET};
+}
+
+/* 老存档升级。只动任务表:旧默认任务整批换成新版,用户自己加的那些留下,
+   打卡历史(log / days / attr)一条不改。升级前把原始 JSON 存一份到
+   liferpg.v1.bak,只存第一次的,后面再升级不会覆盖它。 */
+function upgrade(o){
+  if(o.tv===TASK_SET)return o;
+  try{
+    if(!localStorage.getItem(KEY+'.bak'))localStorage.setItem(KEY+'.bak',JSON.stringify(o));
+  }catch(e){}
+  const old=Array.isArray(o.tasks)?o.tasks:[];
+  const mine=old.filter(function(t){return V1_IDS.indexOf(t.id)<0;});
+  const next=freshTasks().concat(mine);
+  next.forEach(function(t){
+    const p=old.filter(function(x){return x.id===t.id;})[0];
+    if(p&&p.added)t.added=p.added;
+  });
+  o.tasks=next;
+  o.focus={};          /* 主线可能指向被换掉的那条,清掉重挑 */
+  o.tv=TASK_SET;
+  return o;
 }
 
 /* 造一份可看的假数据:近 40 天里留两段空档,今天已经打了 5 条卡。
@@ -440,11 +476,12 @@ let S=(function(){
     if(DEMO)return demoState();
     const r=localStorage.getItem(KEY);
     if(!r)return blank();
-    const o=JSON.parse(r);
+    let o=JSON.parse(r);
     if(!o||!o.attr)return blank();
     CATS.forEach(c=>{if(typeof o.attr[c.k]!=='number')o.attr[c.k]=0;});
     o.log=o.log||[];o.days=o.days||{};
     if(typeof o.created!=='number')o.created=Date.now();
+    o=upgrade(o);
     if(!Array.isArray(o.tasks)||!o.tasks.length)o.tasks=freshTasks();
     /* 老存档的任务没有 added:用 App 创建那天兜底,保持它原来的「多久没做」含义 */
     const born=dayOf(new Date(o.created));
@@ -737,10 +774,12 @@ function renderTasks(){
     })
     .map(x=>x.t);
 
+  const WD=['','周一','周二','周三','周四','周五','周六','周日'];
   box.innerHTML=list.map(t=>{
     const c=cat(t.c);
     const done=!!doneSet[t.id];
-    const meta=[t.d,t.t?('每天 '+t.t):''].filter(Boolean).join(' · ');
+    const when=!t.t?'':((t.wd&&t.wd.length?'每'+t.wd.map(function(w){return WD[w];}).join('、'):'每天')+' '+t.t);
+    const meta=[t.d,when].filter(Boolean).join(' · ');
     return '<div class="task'+(done?' done':'')+'" data-id="'+t.id+'">'
       +'<span class="dot" style="background:'+c.c+';box-shadow:0 0 10px '+c.c+'66"></span>'
       +'<span class="tt"><b>'+esc(t.n)+'</b><i>'+esc(meta)+'</i></span>'
@@ -1004,7 +1043,11 @@ function buildICS(){
     L.push('DTSTAMP:'+stamp);
     L.push('DTSTART:'+icsLocal(d0));
     L.push('DTEND:'+icsLocal(d1));
-    L.push('RRULE:FREQ=DAILY');
+    /* 带 wd 的只在指定的星期重复,否则每天 */
+    const BY=['MO','TU','WE','TH','FR','SA','SU'];
+    L.push(t.wd&&t.wd.length
+      ? ('RRULE:FREQ=WEEKLY;BYDAY='+t.wd.map(function(w){return BY[w-1];}).join(','))
+      : 'RRULE:FREQ=DAILY');
     L.push('SUMMARY:'+icsEsc(t.n));
     L.push('DESCRIPTION:'+icsEsc('属性 '+cat(t.c).n+' +'+t.xp+(t.d?(' / '+t.d):'')));
     L.push('BEGIN:VALARM');
