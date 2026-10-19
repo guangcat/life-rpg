@@ -192,6 +192,33 @@ h2:first-child{margin-top:4px}
 .tools{display:flex;gap:8px;margin-top:22px}
 .tools button,.tools label{flex:1;text-align:center;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:11px;padding:11px 0;font-size:12px;font-family:inherit;cursor:pointer}
 .tools button:active,.tools label:active{background:var(--panel2)}
+
+/* 设置:折叠分组 */
+.setcard{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:9px}
+.setrow{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;color:var(--txt);font-family:inherit;font-size:13.5px;padding:14px 13px;text-align:left;cursor:pointer}
+.setrow:active{background:var(--panel2)}
+.setrow .ico{width:20px;flex:none;text-align:center;color:var(--dim);font-size:14px}
+.setrow .lab{font-weight:600}
+.setrow .val{margin-left:auto;font-size:11.5px;color:var(--dim);max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.setrow .chev{flex:none;color:#4d5b6e;font-size:17px;line-height:1;transition:transform .22s ease}
+.setcard.open .chev{transform:rotate(90deg)}
+.setbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
+.setcard.open .setbody{grid-template-rows:1fr}
+.setbody>.inner{overflow:hidden;padding:0 13px}
+.setcard.open .setbody>.inner{padding-bottom:13px}
+.setcard.danger{border-color:rgba(255,107,122,.42)}
+.lab.red{color:var(--danger)}
+.setcard .tools button.red{color:var(--danger);border-color:rgba(255,107,122,.5)}
+.swrow{display:flex;align-items:center;gap:10px;padding:14px 13px}
+.swrow .ico{width:20px;flex:none;text-align:center;color:var(--dim);font-size:14px}
+.swrow .lab{font-weight:600;font-size:13.5px}
+.switch{margin-left:auto;position:relative;width:48px;height:29px;flex:none}
+.switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.switch span{position:absolute;inset:0;border-radius:15px;background:#2b3a4d;transition:background .2s;pointer-events:none}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;transition:transform .2s ease;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.switch input:checked+span{background:#34c759}
+.switch input:checked+span::after{transform:translateX(19px)}
+
 .note{font-size:11.5px;color:var(--dim);line-height:1.7;margin:12px 2px 0}
 .note b{color:#c9d6e6}
 
@@ -312,42 +339,84 @@ h2:first-child{margin-top:4px}
 
 <!-- ============ 页4:设置 ============ -->
 <section class="page" id="p-setup">
-  <h2>同步到日历</h2>
-  <p class="hubtip">给任务设了「时间」的,会导出成每天重复的日程。日历是<b>单向</b>的:这里是源头,日历只是收件箱——改完任务重新导一次即可。</p>
-  <div class="tools" style="margin-top:0">
-    <button id="btnIcsShare">分享到日历</button>
-    <button id="btnIcsDown">导出 .ics</button>
+  <h2>同步</h2>
+  <div class="setcard" data-sec="sync">
+    <button class="setrow" type="button">
+      <span class="ico">☁</span><span class="lab">同步到电脑</span>
+      <span class="val" id="vSync">未设置</span><span class="chev">›</span>
+    </button>
+    <div class="setbody"><div class="inner">
+      <p class="hubtip">打卡后把存档推到私有仓库 <b>guangcat/life-rpg-data</b>,电脑上的定时任务从那里读。token 只存在这台设备,不会进备份文件。</p>
+      <input id="syncTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴 GitHub token" style="width:100%;background:#0a0e15;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:10px;font-size:13px;font-family:inherit">
+      <div class="tools" style="margin-top:10px">
+        <button id="btnSync">立即同步</button>
+        <button id="btnSyncOff">停用同步</button>
+      </div>
+      <div class="note" id="syncNote">未设置</div>
+    </div></div>
   </div>
-  <div class="note" id="icsNote">还没有设时间的任务。</div>
+
+  <h2>提醒</h2>
+  <div class="setcard" data-sec="cal">
+    <button class="setrow" type="button">
+      <span class="ico">▤</span><span class="lab">同步到日历</span>
+      <span class="val" id="vCal">—</span><span class="chev">›</span>
+    </button>
+    <div class="setbody"><div class="inner">
+      <p class="hubtip">给任务设了「时间」的,会导出成每天重复的日程。日历是<b>单向</b>的:这里是源头,日历只是收件箱——改完任务重新导一次即可。</p>
+      <div class="tools" style="margin-top:0">
+        <button id="btnIcsShare">分享到日历</button>
+        <button id="btnIcsDown">导出 .ics</button>
+      </div>
+      <div class="note" id="icsNote">还没有设时间的任务。</div>
+    </div></div>
+  </div>
+
+  <div class="setcard swrow">
+    <span class="ico">♪</span><span class="lab">完成音效</span>
+    <label class="switch"><input type="checkbox" id="swSound"><span></span></label>
+  </div>
 
   <h2>数据</h2>
-  <div class="tools" style="margin-top:0" id="dataTools">
-    <button id="btnExp">导出备份</button>
-    <label>导入备份<input type="file" id="fileImp" accept=".json,application/json" hidden></label>
-    <button id="btnRst">清空</button>
+  <div class="setcard" data-sec="data">
+    <button class="setrow" type="button">
+      <span class="ico">⛁</span><span class="lab">备份与恢复</span>
+      <span class="val" id="vData">—</span><span class="chev">›</span>
+    </button>
+    <div class="setbody"><div class="inner">
+      <div class="tools" style="margin-top:0" id="dataTools">
+        <button id="btnExp">导出备份</button>
+        <label>导入备份<input type="file" id="fileImp" accept=".json,application/json" hidden></label>
+      </div>
+      <div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。</div>
+    </div></div>
   </div>
-  <div class="note" id="bknote">数据只存在这台设备的浏览器里,清缓存或换浏览器就会丢。</div>
-
-  <h2>音效</h2>
-  <div class="tools" style="margin-top:0">
-    <button id="btnSound">完成音效:开</button>
-  </div>
-
-  <h2>同步</h2>
-  <p class="hubtip">打卡后自动把存档推到 <b>guangcat/life-rpg-data</b>(私有仓库),电脑上的定时任务从那里读。token 只存在这台设备,不会进备份文件。</p>
-  <input id="syncTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴 GitHub token" style="width:100%;background:#0a0e15;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:9px 10px;font-size:13px;font-family:inherit">
-  <div class="tools" style="margin-top:10px">
-    <button id="btnSync">立即同步</button>
-    <button id="btnSyncOff">停用同步</button>
-  </div>
-  <div class="note" id="syncNote">未设置</div>
 
   <div id="demoBlock">
-  <h2>演示</h2>
-  <div class="tools" style="margin-top:0">
-    <button id="btnDemo">演示模式</button>
-    <button id="btnDemoLock">演示 · 锁住退出</button>
+  <div class="setcard" data-sec="demo">
+    <button class="setrow" type="button">
+      <span class="ico">◐</span><span class="lab">演示模式</span>
+      <span class="val" id="vDemo">关</span><span class="chev">›</span>
+    </button>
+    <div class="setbody"><div class="inner">
+      <div class="tools" style="margin-top:0">
+        <button id="btnDemo">演示模式</button>
+        <button id="btnDemoLock">演示 · 锁住退出</button>
+      </div>
+    </div></div>
   </div>
+  </div>
+
+  <h2>危险操作</h2>
+  <div class="setcard danger" data-sec="danger">
+    <button class="setrow" type="button">
+      <span class="ico">!</span><span class="lab red">清空所有进度</span>
+      <span class="chev">›</span>
+    </button>
+    <div class="setbody"><div class="inner">
+      <p class="hubtip">会把经验、打卡记录、任务、倒计时、进度轨道全部清掉,<b>不可撤销</b>。建议先在上面导出备份。</p>
+      <div class="tools" style="margin-top:0"><button id="btnRst" class="red">清空所有进度</button></div>
+    </div></div>
   </div>
 </section>
 
@@ -429,7 +498,7 @@ const DEMO_TASKS=DEFAULT_TASKS.filter(t=>DEMO_HIDE.indexOf(t.id)<0);
 /* 备考覆盖量 / 章节打点。这两个是「走到哪了」,不是任务,所以不计经验——
    否则会和「英语一局」「数学一节」重复计分。 */
 const TRACKS=[
-  {k:'vocab', n:'四级词汇', goal:2000, unit:'词', step:10, kind:'count'},
+  {k:'vocab', n:'四级词汇', goal:2000, unit:'词', step:50, kind:'count'},
   {k:'paper', n:'四级真题', goal:5,    unit:'套', step:1,  kind:'count'},
   {k:'math',  n:'高数章节', goal:5,    unit:'章', step:1,  kind:'list',
    items:['极限与连续','导数与微分','中值定理与应用','不定积分','定积分及应用']},
@@ -671,8 +740,8 @@ function playAchievement(){
 }
 
 function renderSound(){
-  const b=document.getElementById('btnSound');
-  if(b)b.textContent='完成音效:'+(S.sound?'开':'关');
+  const b=document.getElementById('swSound');
+  if(b)b.checked=!!S.sound;
 }
 
 /* ---------- 记录一次 ---------- */
@@ -1083,6 +1152,7 @@ function render(){
   renderGaps();
   renderTracks();
   renderSound();
+  renderSetup();
 }
 
 /* 撤销一条记录:三处必须同时回滚(属性经验 / 当天 days / log),漏一处统计就长期偏掉 */
@@ -1285,6 +1355,60 @@ document.getElementById('btnIcsDown').addEventListener('click',exportICS);
 /* ---------- GitHub 同步 ---------- */
 let syncTimer=null,syncBusy=false,syncTries=0;
 
+/* 设置页:折叠分组 + 每行右侧摘要。折叠状态记在 localStorage,下次进来还是原样。 */
+const SETUP_KEY='liferpg.setup';
+let setupOpen={};
+try{ setupOpen=JSON.parse(localStorage.getItem(SETUP_KEY)||'{}')||{}; }catch(e){ setupOpen={}; }
+let syncStat='';
+
+function toggleSec(k){
+  setupOpen[k]=!setupOpen[k];
+  const c=document.querySelector('.setcard[data-sec="'+k+'"]');
+  if(c)c.classList.toggle('open',!!setupOpen[k]);
+  if(!DEMO){ try{ localStorage.setItem(SETUP_KEY,JSON.stringify(setupOpen)); }catch(e){} }
+}
+
+function applySetupOpen(){
+  document.querySelectorAll('.setcard[data-sec]').forEach(function(c){
+    c.classList.toggle('open',!!setupOpen[c.dataset.sec]);
+    const row=c.querySelector('.setrow');
+    if(row&&!row.dataset.bound){
+      row.dataset.bound='1';
+      row.addEventListener('click',function(){ toggleSec(c.dataset.sec); });
+    }
+  });
+}
+
+function renderSetup(){
+  const vS=document.getElementById('vSync');
+  if(vS){
+    const hasTok=!!(syncCfg().token||'').trim();
+    let s='未设置';
+    if(hasTok){
+      if(/^已同步/.test(syncStat))s=syncStat.split(' · ')[0];
+      else if(/^同步失败/.test(syncStat))s='同步失败';
+      else if(/^已停用/.test(syncStat))s='已停用';
+      else s='已设置';
+    }
+    vS.textContent=s;
+  }
+  const vC=document.getElementById('vCal');
+  if(vC){
+    const n=scheduled().length;
+    vC.textContent=n?(n+' 条已排程'):'未设时间';
+  }
+  const vD=document.getElementById('vData');
+  if(vD){
+    if(!S.lastExport)vD.textContent='还没备份';
+    else{
+      const dd=Math.floor((Date.now()-S.lastExport)/86400000);
+      vD.textContent=(dd<=0)?'今天备份过':(dd+' 天前备份');
+    }
+  }
+  const vM=document.getElementById('vDemo');
+  if(vM)vM.textContent=DEMO?'开':'关';
+}
+
 /* 把 GitHub 的状态码翻成「该去改什么」。第一次配 token 的人只看 401/403 是没法排查的。 */
 function syncHint(code){
   if(code===401)return 'token 无效或已过期';
@@ -1296,10 +1420,13 @@ function syncHint(code){
 }
 
 function syncState(msg,color){
+  syncStat=msg||'';
   const el=document.getElementById('syncNote');
-  if(!el)return;
-  el.textContent=msg;
-  el.style.color=color||'var(--dim)';
+  if(el){
+    el.textContent=msg;
+    el.style.color=color||'var(--dim)';
+  }
+  renderSetup();
 }
 
 const b64utf8=function(s){
@@ -1407,6 +1534,7 @@ document.getElementById('btnRst').addEventListener('click',()=>{
 /* ---------- 启动 ---------- */
 fillAttrSelect();
 probeCustomSound();
+applySetupOpen();
 
 if(DEMO){
   document.getElementById('demobar').hidden=false;
@@ -1426,8 +1554,8 @@ document.getElementById('btnDemoLock').addEventListener('click',function(){
   // replace 而不是 href:把真实 App 那条历史记录顶掉,返回键就回不到真实数据
   location.replace('?demo=1&lock=1');
 });
-document.getElementById('btnSound').addEventListener('click',function(){
-  S.sound=!S.sound;
+document.getElementById('swSound').addEventListener('change',function(e){
+  S.sound=!!(e&&e.target?e.target.checked:!S.sound);
   save();renderSound();
   if(S.sound)playAchievement();
 });
