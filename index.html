@@ -142,6 +142,20 @@ h2:first-child{margin-top:4px}
 .cd.add{border-style:dashed;color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:12px}
 .cd:active{background:var(--panel2)}
 
+/* 备考 / 章节进度 */
+.tracks{display:flex;flex-direction:column;gap:8px}
+.trk{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+.trk .th{display:flex;align-items:baseline;gap:6px;font-size:12.5px}
+.trk .th b{font-size:13px;font-weight:700}
+.trk .th em{font-style:normal;color:var(--dim);font-variant-numeric:tabular-nums;margin-left:auto;font-size:11.5px}
+.trk .tb{height:6px;border-radius:6px;background:#0a0e15;overflow:hidden;margin-top:8px}
+.trk .tb>i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#2f5fb0,#4f8cff);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.trk .nx{margin-top:7px;font-size:11px;color:var(--dim)}
+.trk .ops{display:flex;gap:6px;margin-top:9px}
+.trk .ops button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 0;font-size:12px;font-family:inherit;cursor:pointer}
+.trk .ops button:active{background:#232e40}
+.trk .ops button.p{color:var(--gold);border-color:rgba(255,207,92,.4)}
+
 /* 断了的 */
 .gaps{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
 .gap{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid #1b2431;font-size:13px}
@@ -230,6 +244,8 @@ h2:first-child{margin-top:4px}
     <div class="hmdetail" id="hmdetail" hidden></div>
   </div>
 
+  <div class="note" id="trkSum">—</div>
+
 </section>
 
 <!-- ============ 页2:任务 ============ -->
@@ -278,6 +294,9 @@ h2:first-child{margin-top:4px}
       <button id="cdDel">删除</button>
     </div>
   </div>
+
+  <h2>进度</h2>
+  <div class="tracks" id="tracks"></div>
 
   <h2>今天</h2>
   <div class="tl" id="tl"></div>
@@ -407,6 +426,22 @@ const V1_IDS=['eng_drill','eng_words','math_block','math_fix','cs_block',
 const DEMO_HIDE=['grad_class','grad_intel'];
 const DEMO_TASKS=DEFAULT_TASKS.filter(t=>DEMO_HIDE.indexOf(t.id)<0);
 
+/* 备考覆盖量 / 章节打点。这两个是「走到哪了」,不是任务,所以不计经验——
+   否则会和「英语一局」「数学一节」重复计分。 */
+const TRACKS=[
+  {k:'vocab', n:'四级词汇', goal:2000, unit:'词', step:10, kind:'count'},
+  {k:'paper', n:'四级真题', goal:5,    unit:'套', step:1,  kind:'count'},
+  {k:'math',  n:'高数章节', goal:5,    unit:'章', step:1,  kind:'list',
+   items:['极限与连续','导数与微分','中值定理与应用','不定积分','定积分及应用']},
+  {k:'cs',    n:'408 四门', goal:4,    unit:'门', step:1,  kind:'list',
+   items:['数据结构','计算机组成','计算机网络','操作系统']}
+];
+const freshTracks=function(){
+  const o={};
+  TRACKS.forEach(function(t){o[t.k]=0;});
+  return o;
+};
+
 const need=lv=>100+(lv-1)*60;
 function lvOf(xp){let lv=1,r=xp;while(r>=need(lv)){r-=need(lv);lv++;}return{lv,rem:r,need:need(lv)};}
 const cat=k=>CATS.find(c=>c.k===k)||CATS[0];
@@ -433,7 +468,7 @@ function blank(){
   const a={};
   CATS.forEach(c=>{a[c.k]=0;});
   return {attr:a,log:[],days:{},tasks:freshTasks(),
-          cds:defaultCds(),focus:{},sound:true,created:Date.now(),tv:TASK_SET};
+          cds:defaultCds(),focus:{},sound:true,tracks:freshTracks(),created:Date.now(),tv:TASK_SET};
 }
 
 /* 老存档升级。只动任务表:旧默认任务整批换成新版,用户自己加的那些留下,
@@ -486,6 +521,7 @@ function demoState(){
     }
   }
   s.created=now.getTime()-40*86400000;
+  s.tracks={vocab:1240,paper:2,math:3,cs:1};
   return s;
 }
 
@@ -507,6 +543,8 @@ let S=(function(){
     if(!Array.isArray(o.cds))o.cds=defaultCds();
     if(!o.focus||typeof o.focus!=='object')o.focus={};
     if(typeof o.sound!=='boolean')o.sound=true;
+    if(!o.tracks||typeof o.tracks!=='object')o.tracks=freshTracks();
+    TRACKS.forEach(function(t){ if(typeof o.tracks[t.k]!=='number')o.tracks[t.k]=0; });
     return o;
   }catch(e){return blank();}
 })();
@@ -1008,6 +1046,34 @@ function closeCdForm(){
   document.getElementById('cdForm').hidden=true;
 }
 
+/* 备考覆盖量 / 章节打点 */
+function renderTracks(){
+  const el=document.getElementById('tracks');
+  if(el){
+    el.innerHTML=TRACKS.map(function(t){
+      const now=Math.min(t.goal,Math.max(0,Number((S.tracks||{})[t.k])||0));
+      const pct=t.goal?Math.round(now/t.goal*100):0;
+      const nx=(t.kind==='list'&&now<t.goal)
+        ? ('<div class="nx">下一'+t.unit+': '+esc(t.items[now])+'</div>') : '';
+      return '<div class="trk">'
+        +'<div class="th"><b>'+t.n+'</b><em>'+now+' / '+t.goal+' '+t.unit+'</em></div>'
+        +'<div class="tb"><i style="width:'+pct+'%"></i></div>'
+        +nx
+        +'<div class="ops">'
+          +'<button data-trk="'+t.k+'" data-d="-1">− '+t.step+'</button>'
+          +'<button class="p" data-trk="'+t.k+'" data-d="1">+ '+t.step+'</button>'
+        +'</div></div>';
+    }).join('');
+  }
+  const sum=document.getElementById('trkSum');
+  if(sum){
+    sum.textContent='进度:'+TRACKS.map(function(t){
+      const now=Math.min(t.goal,Math.max(0,Number((S.tracks||{})[t.k])||0));
+      return t.n+' '+now+'/'+t.goal;
+    }).join(' · ');
+  }
+}
+
 function render(){
   renderPanel();
   renderTasks();
@@ -1015,6 +1081,7 @@ function render(){
   renderFocus();
   renderCds();
   renderGaps();
+  renderTracks();
   renderSound();
 }
 
@@ -1218,6 +1285,16 @@ document.getElementById('btnIcsDown').addEventListener('click',exportICS);
 /* ---------- GitHub 同步 ---------- */
 let syncTimer=null,syncBusy=false,syncTries=0;
 
+/* 把 GitHub 的状态码翻成「该去改什么」。第一次配 token 的人只看 401/403 是没法排查的。 */
+function syncHint(code){
+  if(code===401)return 'token 无效或已过期';
+  if(code===403)return 'token 没有这个仓库的写权限';
+  if(code===404)return '仓库不存在,或 token 没勾这个仓库';
+  if(code===409)return '仓库为空或分支不对(409)';
+  if(code===422)return '提交被拒绝(422)';
+  return 'HTTP '+code;
+}
+
 function syncState(msg,color){
   const el=document.getElementById('syncNote');
   if(!el)return;
@@ -1253,13 +1330,13 @@ async function pushSync(manual){
     let sha=null;
     const head=await fetch(url,{headers:h,cache:'no-store'});
     if(head.ok){sha=(await head.json()).sha;}
-    else if(head.status!==404){throw new Error('读 '+head.status);}
+    else if(head.status!==404){throw new Error(syncHint(head.status));}
     const body={message:'backup '+day()+' '+hm(Date.now()),content:b64utf8(JSON.stringify(S,null,2))};
     if(sha)body.sha=sha;
     const r=await fetch(url,{method:'PUT',headers:h,body:JSON.stringify(body)});
-    if(!r.ok)throw new Error('写 '+r.status);
+    if(!r.ok)throw new Error(syncHint(r.status));
     syncTries=0;
-    syncState('已同步 '+hm(Date.now()),'#37d6a0');
+    syncState('已同步 '+hm(Date.now())+' · '+S.log.length+' 条记录','#37d6a0');
   }catch(e){
     syncTries++;
     syncState('同步失败:'+e.message+(syncTries<4?' · 稍后重试':''),'#ff6b7a');
@@ -1370,6 +1447,22 @@ document.getElementById('hm').addEventListener('click',function(e){
   if(!c)return;
   hmSel=(hmSel===c.dataset.d)?'':c.dataset.d;
   renderHeat();
+});
+document.getElementById('tracks').addEventListener('click',function(e){
+  const b=e.target.closest('[data-trk]');
+  if(!b)return;
+  const t=TRACKS.filter(function(x){return x.k===b.dataset.trk;})[0];
+  if(!t)return;
+  const dir=Number(b.dataset.d);
+  S.tracks=S.tracks||freshTracks();
+  const cur=Number(S.tracks[t.k]||0);
+  let next=cur+dir*t.step;
+  if(next<0)next=0;
+  if(next>t.goal)next=t.goal;
+  if(next===cur){toast(dir>0?'已经到目标了':'已经是最低了','#ffd27a');return;}
+  S.tracks[t.k]=next;
+  save();render();scheduleSync();
+  toast(t.n+' '+(dir>0?'+':'−')+Math.abs(next-cur),'#4f8cff');
 });
 document.getElementById('btnShare').addEventListener('click',function(){
   const t=reportText();
