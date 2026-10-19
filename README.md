@@ -135,6 +135,36 @@
 如果导入后发现重复了,说明你的日历不按 UID 去重。办法是导入时选一个专门的
 「life-rpg」日历,以后要重来就把那个日历整个删掉再导一次。
 
+## 同步到电脑(给考研那条流水线用)
+
+打卡后 App 会把整份存档 PUT 到私有仓库 `guangcat/life-rpg-data` 的 `backup.json`,
+电脑上的定时任务每天 22:40 拉一次,写进 `D:\考研\战力记录.md`。
+
+### token 怎么来(只做一次)
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token
+2. Resource owner 选 `guangcat`;Repository access 选 **Only select repositories**,只勾 `life-rpg-data`
+3. Repository permissions 里只开 **Contents: Read and write**,别的都不动
+4. Expiration 选 90 天,到期重新生成、把旧的删掉
+5. 复制生成的 token,粘到 App「设置 → 同步 → 粘贴 GitHub token」,离开输入框就会推一次
+
+### 它存在哪
+
+token 在 `localStorage['liferpg.sync']`,**不在存档对象 S 里**,所以「导出备份」拿到的
+json 不含 token。App 只往 `api.github.com` 发请求,不经过任何第三方。
+
+### 风险边界
+
+这是个公开的静态页,能在这台设备上跑脚本的东西都读得到 localStorage。所以这个 token
+只给单个私有仓库的 Contents 权限:就算泄露也读不到别的仓库,90 天自动过期。真出事就去
+GitHub 删掉这个 token,App 里点「停用同步」。
+
+### 它会失败的情况
+
+手机访问不到 `api.github.com`(网络受限)、token 过期、权限给错。设置页那行状态会显示
+「同步失败:读 401 / 写 403」之类,失败自动重试 3 次。电脑端拉取脚本是
+`_pull_backup.ps1`,输出 `EMPTY` 表示仓库里还没有备份。
+
 ## 本地改完怎么重新发布
 
 ```powershell
