@@ -197,6 +197,7 @@ h2:first-child{margin-top:4px}
 .setcard{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:9px}
 .setrow{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;color:var(--txt);font-family:inherit;font-size:13.5px;padding:14px 13px;text-align:left;cursor:pointer}
 .setrow:active{background:var(--panel2)}
+.setrow[disabled]{opacity:.55}
 .setrow .ico{width:20px;flex:none;text-align:center;color:var(--dim);font-size:14px}
 .setrow .lab{font-weight:600}
 .setrow .val{margin-left:auto;font-size:11.5px;color:var(--dim);max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -339,6 +340,14 @@ h2:first-child{margin-top:4px}
 
 <!-- ============ 页4:设置 ============ -->
 <section class="page" id="p-setup">
+  <h2>应用</h2>
+  <div class="setcard">
+    <button class="setrow" id="btnUpdate" type="button">
+      <span class="ico">↻</span><span class="lab">刷新到最新版</span>
+      <span class="val" id="vVer">—</span>
+    </button>
+  </div>
+
   <h2>同步</h2>
   <div class="setcard" data-sec="sync">
     <button class="setrow" type="button">
@@ -1409,6 +1418,50 @@ function renderSetup(){
   if(vM)vM.textContent=DEMO?'开':'关';
 }
 
+/* 手动更新。iOS 会把 Service Worker 的自动更新检查拖到最长一天一次,
+   所以给一个按钮:主动 reg.update() → 等新 SW 接管 → 再刷新。
+   右侧显示当前缓存的构建时间,刷新前后对一眼就知道有没有真的换到新版。 */
+function fmtBuild(k){
+  const m=/^liferpg-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(k||'');
+  return m?(m[1]+'-'+m[2]+'-'+m[3]+' '+m[4]+':'+m[5]):'';
+}
+
+async function renderVer(){
+  const v=document.getElementById('vVer');
+  if(!v)return;
+  try{
+    if(typeof caches==='undefined'){v.textContent='无缓存';return;}
+    const ks=await caches.keys();
+    const mine=ks.filter(function(k){return k.indexOf('liferpg-')===0;}).sort();
+    v.textContent=mine.length?(fmtBuild(mine[mine.length-1])||'已缓存'):'无缓存';
+  }catch(e){v.textContent='—';}
+}
+
+async function forceUpdate(){
+  const row=document.getElementById('btnUpdate'),v=document.getElementById('vVer');
+  if(row)row.disabled=true;
+  if(v)v.textContent='更新中…';
+  try{
+    if(typeof navigator!=='undefined'&&navigator.serviceWorker){
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg){
+        try{ await reg.update(); }catch(e){}
+        if(reg.waiting&&reg.waiting.postMessage)reg.waiting.postMessage({type:'SKIP_WAITING'});
+        if(navigator.serviceWorker.controller){
+          await new Promise(function(res){
+            let done=false;
+            const t=setTimeout(function(){ if(!done){done=true;res();} },3000);
+            navigator.serviceWorker.addEventListener('controllerchange',function(){
+              if(!done){done=true;clearTimeout(t);res();}
+            });
+          });
+        }
+      }
+    }
+  }catch(e){}
+  location.reload();
+}
+
 /* 把 GitHub 的状态码翻成「该去改什么」。第一次配 token 的人只看 401/403 是没法排查的。 */
 function syncHint(code){
   if(code===401)return 'token 无效或已过期';
@@ -1535,6 +1588,7 @@ document.getElementById('btnRst').addEventListener('click',()=>{
 fillAttrSelect();
 probeCustomSound();
 applySetupOpen();
+renderVer();
 
 if(DEMO){
   document.getElementById('demobar').hidden=false;
@@ -1559,6 +1613,7 @@ document.getElementById('swSound').addEventListener('change',function(e){
   save();renderSound();
   if(S.sound)playAchievement();
 });
+document.getElementById('btnUpdate').addEventListener('click',forceUpdate);
 document.getElementById('tl').addEventListener('click',function(e){
   const b=e.target.closest('.undo');
   if(!b)return;

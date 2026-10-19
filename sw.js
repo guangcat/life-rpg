@@ -1,13 +1,28 @@
-const CACHE = 'liferpg-20261019113443';
+const CACHE = 'liferpg-20261019114101';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png'
 ];
 
+// Fetch every asset with cache:'reload' instead of cache.addAll: GitHub Pages
+// serves files with max-age=600, and addAll would happily copy a 10-minute-old
+// index.html into the brand new cache. That is exactly the "I updated but still
+// see the old version" bug.
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await Promise.all(ASSETS.map(async (u) => {
+      try {
+        const r = await fetch(u, { cache: 'reload' });
+        if (r.ok) await c.put(u, r);
+      } catch (err) { /* keep whatever we already have */ }
+    }));
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
