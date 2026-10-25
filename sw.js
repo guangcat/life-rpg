@@ -1,7 +1,8 @@
-const CACHE = 'liferpg-20261025-modules-v1';
+const CACHE = 'liferpg-20261025-study-v2';
 const ASSETS = [
   './', './index.html', './app.css', './app.mjs',
   './modules/state.mjs', './modules/sync.mjs',
+  './modules/study.mjs', './modules/study-view.mjs',
   './modules/audio.mjs', './modules/calendar.mjs', './manifest.webmanifest',
   './icon-180.png', './icon-192.png', './icon-512.png'
 ];
