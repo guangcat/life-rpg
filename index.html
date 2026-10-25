@@ -25,6 +25,7 @@
   <label class="output-label" for="studyOutput">留下一句产出 <span>选填</span></label>
   <input id="studyOutput" class="output-input" maxlength="120" placeholder="例如：独立做了 6 题，订正 2 题">
   <section aria-labelledby="timelineHeading"><div class="section-head"><h2 id="timelineHeading">今天的足迹</h2><span>每一步都算数</span></div><div class="tl" id="tl"></div></section>
+  <section class="boss" id="boss" aria-label="备考学习覆盖进度" hidden></section>
   <div class="rest-card"><button class="mini" id="btnRest" type="button">今天休息</button><p class="note" id="restNote"></p></div>
   <details class="today-fold" data-today="countdown"><summary>重要日子<span>倒计时</span></summary><div class="fold-body">
     <div class="taskhead"><h2>倒计时</h2><button class="mini" id="btnCdAdd" type="button">+ 添加</button></div><div class="cds" id="cds"></div>
@@ -37,8 +38,9 @@
 </section>
 <section class="page" id="p-panel" aria-label="属性">
   <header class="page-header"><div><span class="eyebrow">YOUR GROWTH</span><h1>成长，有迹可循。</h1></div></header>
-  <div class="hud"><div class="hud-top"><div class="lv"><small>Lv</small><span id="plv">1</span></div><div class="hud-title" id="profileTitle">我的成长</div></div><div class="bar"><i id="pxp"></i></div><div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div><div class="chips"><div class="chip hot"><b id="streak">0</b><span>连击学习日</span></div><div class="chip"><b id="dday">—</b><span id="ddlabel">倒计时</span></div><div class="chip"><b id="todayn">0</b><span>今日记录</span></div></div></div>
-  <h2>六项属性</h2><div class="attrs" id="attrs"></div>
+  <div class="hud"><div class="hud-top"><div class="lv"><small>Lv</small><span id="plv">1</span></div><div class="hud-title" id="profileTitle">我的成长</div></div><div class="bar"><i id="pxp"></i></div><div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div><div class="chips"><div class="chip hot"><b id="streak">0</b><span>连续打卡日</span></div><div class="chip"><b id="dday">—</b><span id="ddlabel">倒计时</span></div><div class="chip"><b id="todayn">0</b><span>今日记录</span></div></div></div>
+  <p class="learning-days" id="learningDays">累计打卡 0 天 · 有效学习 0 天 · 本周达标 0/7</p>
+  <h2>六项属性</h2><div class="radar" id="radar"></div><div class="attrs" id="attrs"></div>
   <div class="section-head"><h2>近 16 周的足迹</h2><span>左右滑动 · 点选日期</span></div>
   <div class="hm"><div class="heat-layout"><div class="heat-weekdays" aria-hidden="true"><span></span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div id="heatScroll" class="heat-scroll" tabindex="0" aria-label="近16周学习热力图，可左右滚动"><div id="hmMonths" class="heat-months" aria-hidden="true"></div><div class="hmgrid" id="hm"></div></div></div><div class="hmlegend"><span>少</span><span class="sw" aria-hidden="true"><b style="background:#161d29"></b><b style="background:#4a3a17"></b><b style="background:#8a6b1f"></b><b style="background:#c9a03a"></b><b style="background:#ffcf5c"></b></span><span>多</span></div><p class="note" id="hmstat"></p><div class="hmdetail" id="hmdetail" hidden></div></div>
   <p class="note" id="trkSum"></p>
@@ -46,6 +48,7 @@
 <section class="page" id="p-tasks" aria-label="任务">
   <header class="page-header"><div><span class="eyebrow">MAKE IT HAPPEN</span><h1 id="taskTitle">从一件小事开始。</h1></div></header>
   <div class="taskhead"><h2>今天该做的</h2><button class="mini" id="btnManage" type="button">管理</button><button class="mini" id="btnNew" type="button">+ 新建</button></div>
+  <div class="task-shortcuts"><button class="mini" id="btnHomework" type="button">添加作业任务</button></div>
   <div class="dcard" id="doneCard"></div>
   <div class="form" id="taskForm" hidden>
     <div class="frow"><label for="fName">名称</label><input id="fName" maxlength="40" placeholder="例如：独立做一道数学题"></div>
@@ -54,7 +57,9 @@
     <div class="frow"><label for="fTime">时间</label><input id="fTime" type="time"></div>
     <div class="frow"><label for="fRepeat">频次</label><select id="fRepeat"><option value="daily">每天</option><option value="weekly">每周指定日期</option><option value="once">一次性</option></select></div>
     <fieldset id="fWeekdays" class="weekdays"><legend>每周日期</legend><label><input type="checkbox" name="weekday" value="1"><span>周一</span></label><label><input type="checkbox" name="weekday" value="2"><span>周二</span></label><label><input type="checkbox" name="weekday" value="3"><span>周三</span></label><label><input type="checkbox" name="weekday" value="4"><span>周四</span></label><label><input type="checkbox" name="weekday" value="5"><span>周五</span></label><label><input type="checkbox" name="weekday" value="6"><span>周六</span></label><label><input type="checkbox" name="weekday" value="7"><span>周日</span></label></fieldset>
+    <p class="note attendance-note" id="attendanceNote" hidden>全勤需要课表：请把频次设为「每周指定日期」，再勾选实际有课的日子。</p>
     <div class="frow"><label for="fDesc">说明</label><input id="fDesc" maxlength="120" placeholder="把动作写得足够小"></div>
+    <label class="check-line"><input type="checkbox" id="fOptional"><span>按需任务（不计入今日完成率）</span></label>
     <label class="check-line"><input type="checkbox" id="fPaused">暂停这条任务</label><div class="tools"><button id="fSave" type="button">保存任务</button><button id="fCancel" type="button">取消</button></div>
   </div>
   <div class="tasks" id="tasks"></div><div class="tools"><button id="btnResetTasks" type="button">恢复默认任务</button></div>

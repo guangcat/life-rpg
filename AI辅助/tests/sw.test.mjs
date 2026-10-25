@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../../sw.js', import.meta.url), 'utf8');
 const scope = 'https://example.test/life-rpg/';
-const required = ['./', './index.html', './app.css', './app.mjs', './modules/state.mjs', './modules/sync.mjs', './modules/audio.mjs', './modules/calendar.mjs', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const required = ['./', './index.html', './app.css', './app.mjs', './modules/state.mjs', './modules/sync.mjs', './modules/study.mjs', './modules/study-view.mjs', './modules/audio.mjs', './modules/calendar.mjs', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 function harness(fetchImpl = async () => new Response('static')) {
   const handlers = {}, buckets = new Map(), calls = [];
   let skipped = 0, claimed = 0;
@@ -38,8 +38,14 @@ test('install fetches and caches every required application file with reload', a
 });
 
 test('install fails when any core module cannot be fetched', async () => {
-  const sw = harness(async request => String(request).includes('modules/sync.mjs') ? new Response('missing', {status: 404}) : new Response('static'));
-  await assert.rejects(sw.event('install'));
+  for (const missing of ['modules/sync.mjs', 'modules/study.mjs', 'modules/study-view.mjs']) {
+    const sw = harness(async request => String(request).endsWith(missing) ? new Response('missing', {status: 404}) : new Response('static'));
+    await sw.cache('liferpg-previous').put('./index.html', new Response('previous-shell'));
+    await assert.rejects(sw.event('install'), /Missing required app resource/, missing);
+    assert.deepEqual([...sw.buckets.keys()], ['liferpg-previous'], 'failed install must not publish a partial release');
+    assert.equal(await (await sw.cache('liferpg-previous').match('./index.html')).text(), 'previous-shell');
+    assert.equal(sw.skipped(), 0);
+  }
 });
 
 test('updating worker waits for an explicit update message', async () => {
@@ -70,9 +76,11 @@ test('static resources are served from this worker cache and ignore query versio
   let networkCalls = 0;
   const sw = harness(async () => {networkCalls++; return new Response('cached-module');});
   await sw.event('install'); const count = networkCalls;
-  const result = await sw.fetchEvent('./modules/sync.mjs?v=2');
-  assert.equal(result.handled, true);
-  assert.equal(await result.response.text(), 'cached-module');
+  for (const module of ['sync', 'study', 'study-view']) {
+    const result = await sw.fetchEvent('./modules/' + module + '.mjs?v=2');
+    assert.equal(result.handled, true);
+    assert.equal(await result.response.text(), 'cached-module');
+  }
   assert.equal(networkCalls, count);
 });
 
