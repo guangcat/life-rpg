@@ -285,3 +285,57 @@ test('今天不再展示Boss与多组进度，设置内才有存档说明',()=>{
   assert.match(panel,/id="boss"/);assert.match(panel,/id="tracks"/);
   assert.ok(html.indexOf('id="saveWarning"')>html.indexOf('id="p-setup"'));
 });
+
+function updateWorker(a,{waiting=true,onActivate=''}={}){
+  a.run(`var updateCalls=0,reloads=0,activations=0,controlChange;
+    var registration={update:async()=>{updateCalls++;},waiting:${waiting?'{}':'null'}};
+    ${waiting?`registration.waiting.postMessage=()=>{activations++;registration.waiting=null;${onActivate};controlChange();};`:''}
+    navigator.serviceWorker={controller:{},getRegistration:async()=>registration,
+      addEventListener:(_event,fn)=>{controlChange=fn;},removeEventListener(){}};
+    location.reload=()=>{reloads++;};`);
+}
+
+test('检查新版不依赖写回受保护原档，更新保留原始字节',async()=>{
+  const original='{bad json',a=await boot({'liferpg.v1':original});updateWorker(a);
+  await a.run('forceUpdate()');assert.equal(a.run('updateCalls'),1);assert.equal(a.run('reloads'),1);
+  assert.equal(a.store['liferpg.v1'],original);
+});
+
+test('没有新版本时只检查，不因无法写入而要求反复导出',async()=>{
+  const a=await boot({},true);updateWorker(a,{waiting:false});
+  await a.run('forceUpdate()');assert.equal(a.run('updateCalls'),1);assert.equal(a.run('reloads'),0);
+  assert.equal(a.nodes.saveDialog.hidden,true);
+});
+
+test('配额失败先阻止刷新，导出确切副本并确认文件保存后可更新',async()=>{
+  const a=await boot({},true);a.run('record("math_block")');updateWorker(a);
+  await a.run('forceUpdate()');assert.equal(a.run('activations'),0);
+  a.nodes.btnExp.fire('click');const backup=JSON.parse(await a.exportText());assert.equal(backup.log.length,1);
+  a.run('confirm=()=>false');await a.run('forceUpdate()');assert.equal(a.run('reloads'),0);
+  a.run('confirm=()=>true');await a.run('forceUpdate()');assert.equal(a.run('reloads'),1);
+  assert.equal(a.store['liferpg.v1'],undefined);assert.equal(a.run('S.log.length'),1);
+});
+
+test('导出后新增词汇或记录会使旧备份失效',async()=>{
+  const a=await boot({},true);a.run('record("math_block")');a.nodes.btnExp.fire('click');
+  a.run('closeSaveProblem();changeVocab(37)');updateWorker(a);
+  await a.run('forceUpdate()');assert.equal(a.run('activations'),0);assert.equal(a.run('reloads'),0);
+  assert.equal(a.run('S.tracks.vocab'),37);assert.equal(a.run('S.log.length'),1);
+});
+
+test('另一标签在导出后再改存档时不会凭旧副本刷新或覆盖',async()=>{
+  const a=await boot();a.run('record("math_block")');
+  const other=JSON.parse(a.store['liferpg.v1']);other.settings.name='另一页面';a.store['liferpg.v1']=JSON.stringify(other);
+  a.run('record("eng_drill")');a.nodes.btnExp.fire('click');
+  other.settings.name='又一次更新';const latest=JSON.stringify(other);a.store['liferpg.v1']=latest;updateWorker(a);
+  await a.run('forceUpdate()');assert.equal(a.run('activations'),0);assert.equal(a.run('reloads'),0);
+  assert.equal(a.store['liferpg.v1'],latest);assert.equal(a.run('S.log.length'),2);
+});
+
+test('接管期间的新未保存改动会阻止刷新，再导出后可继续完成更新',async()=>{
+  const a=await boot({},true);a.run('record("math_block")');a.nodes.btnExp.fire('click');
+  updateWorker(a,{onActivate:'S.tracks.vocab=37'});await a.run('forceUpdate()');
+  assert.equal(a.run('activations'),1);assert.equal(a.run('reloads'),0);assert.equal(a.run('S.tracks.vocab'),37);
+  a.nodes.btnExp.fire('click');await a.run('forceUpdate()');assert.equal(a.run('reloads'),1);
+  assert.equal(JSON.parse(await a.exportText()).tracks.vocab,37);
+});

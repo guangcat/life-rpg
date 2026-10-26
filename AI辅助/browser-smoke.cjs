@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
 const {chromium,devices}=require(process.argv[2]||'playwright');
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'预览');
 let servedVersion=1;
-const allowed=new Set(['index.html','app.css','app.mjs','manifest.webmanifest','sw.js','icon-180.png','icon-192.png','icon-512.png','modules/state.mjs','modules/sync.mjs','modules/study.mjs','modules/study-view.mjs','modules/audio.mjs','modules/calendar.mjs']);
+const allowed=new Set(['index.html','update.html','app.css','app.mjs','manifest.webmanifest','sw.js','icon-180.png','icon-192.png','icon-512.png','modules/state.mjs','modules/sync.mjs','modules/study.mjs','modules/study-view.mjs','modules/audio.mjs','modules/calendar.mjs']);
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.webmanifest':'application/manifest+json','.png':'image/png'};
 const server=http.createServer((req,res)=>{
   let file=decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\/life-rpg\//,'');
@@ -281,5 +281,25 @@ const server=http.createServer((req,res)=>{
     assert.equal(await raceFirst.evaluate(()=>localStorage.getItem('liferpg.v1')),diskAfterOtherTab);
     assert.deepEqual(raceErrors,[]);assert.deepEqual(raceRun.network.blocked,[]);await raceRun.context.close();
     console.log('PASS stale-tab export rescues its unsaved journal while preserving the other tab’s saved bytes');
+    const repairRun=await isolated(),repairErrors=[],protectedRaw='{synthetic old unreadable save';
+    await repairRun.context.addInitScript(raw=>{if(localStorage.getItem('liferpg.v1')===null)localStorage.setItem('liferpg.v1',raw);},protectedRaw);
+    const oldClient=await fixedPage(repairRun.context);oldClient.on('pageerror',e=>repairErrors.push(e.message));
+    await oldClient.goto(url);await oldClient.locator('#focusDo').waitFor();
+    await oldClient.evaluate(async()=>{await navigator.serviceWorker.ready;});await oldClient.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await oldClient.reload();await oldClient.locator('#focusDo').waitFor();
+    const oldRelease=await oldClient.locator('html').getAttribute('data-smoke-version');servedVersion++;
+    const updater=await fixedPage(repairRun.context);updater.on('pageerror',e=>repairErrors.push(e.message));
+    await updater.goto(url+'update.html');await updater.locator('#installUpdate').waitFor();
+    assert.equal(await updater.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await updater.locator('#installUpdate').click();await updater.waitForURL(url);await updater.locator('#focusDo').waitFor();
+    assert.equal(await updater.locator('html').getAttribute('data-smoke-version'),String(servedVersion));
+    assert.equal(await oldClient.locator('html').getAttribute('data-smoke-version'),oldRelease,'other client must not be reloaded');
+    assert.equal(await updater.evaluate(()=>localStorage.getItem('liferpg.v1')),protectedRaw);
+    await updater.locator('.tabbar [data-p="setup"]').click();await updater.locator('#btnUpdate').click();
+    await updater.waitForFunction(()=>!document.getElementById('btnUpdate').disabled);
+    assert.equal(await updater.locator('#saveDialog').isVisible(),false,'checking an already current app needs no export');
+    assert.equal(await updater.evaluate(()=>localStorage.getItem('liferpg.v1')),protectedRaw);
+    assert.deepEqual(repairErrors,[]);assert.deepEqual(repairRun.network.blocked,[]);await repairRun.context.close();
+    console.log('PASS direct updater bypasses the cached shell, installs a new worker and preserves original bytes without reloading another client');
   }finally{await browser.close();}
 })().then(()=>server.close()).catch(error=>{console.error(error);server.close();process.exitCode=1;});

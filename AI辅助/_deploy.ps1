@@ -5,7 +5,7 @@ $Root=Split-Path -Parent $PSScriptRoot
 $ToolName=Split-Path -Leaf $PSScriptRoot
 & node (Join-Path $PSScriptRoot '_selftest.js')
 if($LASTEXITCODE -ne 0){throw 'Regression checks failed; nothing published'}
-$Files=@('index.html','app.css','app.mjs','sw.js','manifest.webmanifest','icon-180.png','icon-192.png','icon-512.png','README.md','.github/workflows/ci.yml')
+$Files=@('index.html','update.html','app.css','app.mjs','sw.js','manifest.webmanifest','icon-180.png','icon-192.png','icon-512.png','README.md','.github/workflows/ci.yml')
 $Files+=@(Get-ChildItem -LiteralPath (Join-Path $Root 'modules') -File -Filter '*.mjs' | ForEach-Object {'modules/'+$_.Name})
 $Files+=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -File -Filter '*.test.mjs' | ForEach-Object {$ToolName+'/tests/'+$_.Name})
 $Files+=@('_selftest.js','_deploy.ps1','README.md','preview.cjs','browser-smoke.cjs','_pull_backup.ps1','_sync_to_kaoyan.ps1','_md_header.txt','_make_icons.py') | ForEach-Object {$ToolName+'/'+$_}

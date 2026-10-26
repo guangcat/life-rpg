@@ -8,6 +8,7 @@ import * as StudyView from './modules/study-view.mjs';
 let S=null,syncClient=null,storageBlocked=false,blockedOriginal=false,startupWarning='',lastRenderedDay='',heatPositioned=false,persistedRaw=null;
 let syncStat='',syncKind='idle';
 let saveDialogReturnFocus=null;
+let lastUpdateExport=null,protectedUpdateView='',pendingUpdateRefresh=false;
 /* URL 标志位也用于无写入的演示模式。 */
 function queryFlag(name,search){
   const s=(search!==undefined)?search:((typeof location!=='undefined'&&location.search)||'');
@@ -936,14 +937,43 @@ async function renderVer(){
   }catch(e){v.textContent='—';}
 }
 
+// UI focus and backup timestamps are not new learning data.
+function updateContent(){
+  const {focus,lastExport,...content}=S;
+  return JSON.stringify(content);
+}
+function readyToReloadUpdate(consent){
+  if(DEMO)return true;
+  let raw;try{raw=localStorage.getItem(KEY);}catch{showSaveProblem();return false;}
+  const content=updateContent();
+  // A protected original is already on disk; the temporary view is not a new save.
+  if(blockedOriginal&&raw===persistedRaw&&content===protectedUpdateView)return true;
+  if(!storageBlocked&&raw===persistedRaw&&JSON.stringify(S)===persistedRaw)return true;
+  if(!storageBlocked&&save({sync:false,notify:false}))return true;
+  const receipt=lastUpdateExport;
+  try{raw=localStorage.getItem(KEY);}catch{showSaveProblem();return false;}
+  if(receipt&&receipt.state===updateContent()&&receipt.raw===raw){
+    const message=receipt.kind==='original'
+      ?'请确认原始备份文件已经保存好。更新会保留原有存档；本页尚未保存的任务或设置不会保留。继续更新吗？'
+      :'请确认刚导出的备份文件已经保存好。更新会重新打开应用；本页未保存的内容可从这份备份恢复。继续更新吗？';
+    if(consent.receipt!==receipt&&!confirm(message))return false;
+    // Another tab may have written while the native confirmation was open.
+    if(receipt.state!==updateContent()||receipt.raw!==localStorage.getItem(KEY)){
+      showSaveProblem();toast('记录又有变化，请重新导出后再更新');return false;
+    }
+    consent.receipt=receipt;return true;
+  }
+  showSaveProblem();toast('本页还有未保存的内容，请先导出备份');return false;
+}
 async function forceUpdate(){
   const row=document.getElementById('btnUpdate'),v=document.getElementById('vVer');
-  if(!DEMO&&JSON.stringify(S)!==persistedRaw&&!save()){toast('请先导出未保存的记录，再更新应用');return;}
+  if(row.disabled)return;
   row.disabled=true;v.textContent='检查更新…';
+  const consent={};
   try{
     if(!navigator.serviceWorker){toast('此浏览器不支持离线更新');return;}
     const reg=await navigator.serviceWorker.getRegistration();
-    if(!reg){location.reload();return;}
+    if(!reg){if(readyToReloadUpdate(consent)){closeSaveProblem();location.reload();}return;}
     await reg.update();
     const worker=reg.installing;
     if(worker&&worker.state!=='installed'&&worker.state!=='activated'){
@@ -955,14 +985,20 @@ async function forceUpdate(){
         worker.addEventListener('statechange',change);finish();
       });
     }
-    if(!reg.waiting){toast('当前已是可用的最新版本');return;}
-    if(!DEMO&&JSON.stringify(S)!==persistedRaw&&!save()){toast('记录尚未保存，请先导出备份');return;}
+    if(!reg.waiting){
+      if(pendingUpdateRefresh&&readyToReloadUpdate(consent)){closeSaveProblem();location.reload();}
+      else if(!pendingUpdateRefresh)toast('当前已是可用的最新版本');
+      return;
+    }
+    if(!readyToReloadUpdate(consent))return;
+    closeSaveProblem();
     await new Promise((resolve,reject)=>{
       const change=()=>{clearTimeout(timer);navigator.serviceWorker.removeEventListener('controllerchange',change);resolve();};
       const timer=setTimeout(()=>{navigator.serviceWorker.removeEventListener('controllerchange',change);reject(new Error('新版本尚未接管，请稍后再试'));},10000);
       navigator.serviceWorker.addEventListener('controllerchange',change);reg.waiting.postMessage({type:'SKIP_WAITING'});
     });
-    location.reload();
+    pendingUpdateRefresh=true;
+    if(readyToReloadUpdate(consent)){closeSaveProblem();location.reload();}
   }catch(e){toast(e.message||'检查更新失败，请联网后重试','#ff6b7a');}
   finally{row.disabled=false;renderVer();}
 }
@@ -1017,8 +1053,9 @@ document.getElementById('btnExp').addEventListener('click',()=>{
   const b=new Blob([protectedRaw??JSON.stringify(S,null,2)],{type:'application/json'});
   const u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download='life-rpg-'+day()+(blockedOriginal?'-原始存档':storageBlocked?'-本页未保存':'')+'.json';a.click();
+  lastUpdateExport={kind:protectedRaw?'original':'state',state:updateContent(),raw:localStorage.getItem(KEY)};
   setTimeout(()=>URL.revokeObjectURL(u),3000);
-  if(!storageBlocked){S.lastExport=Date.now();save();renderToday();}
+  if(!storageBlocked){S.lastExport=Date.now();save({sync:false,notify:false});renderToday();}
   toast(protectedRaw?'已导出原始存档，未改写已有记录':storageBlocked?'已导出本页含未保存记录的副本；请也从另一页导出已保存的副本，核对后再恢复':'已导出备份','#37d6a0');
 });
 
@@ -1168,6 +1205,7 @@ document.getElementById('btnShare').addEventListener('click',function(){
 
 showPage(page);
 render();
+if(blockedOriginal)protectedUpdateView=updateContent();
 if(startupWarning)setSaveWarning(startupWarning);
 document.getElementById('fWeekdays').hidden=true;
 function checkDay(){if(day()!==lastRenderedDay){S.focus={};render();}}
