@@ -17,16 +17,21 @@
 </head>
 <body>
 <div class="demobar" id="demobar" hidden><b>演示模式</b> · 数据是假的，不会写进存档 <span id="demobarHint" hidden>关闭页面即可退出</span><a href="./" id="demobarLink">退出演示</a></div>
-<div id="saveWarning" class="save-warning" role="alert" hidden></div>
 <main>
 <section class="page" id="p-today" aria-label="今天">
-  <header class="page-header"><div><span class="eyebrow">ONE SMALL STEP</span><h1>今天，前进一步。</h1></div><span class="header-dot" aria-hidden="true"></span></header>
+  <header class="page-header today-header"><div><span class="eyebrow">ONE SMALL STEP</span><h1>今天先学这一件</h1><p class="today-intro">选一项开始，学完后点完成打卡。</p></div></header>
+  <p class="today-summary" id="todaySummary">今天还没有打卡</p>
   <div class="focus" id="focus"></div>
-  <label class="output-label" for="studyOutput">留下一句产出 <span>选填</span></label>
-  <input id="studyOutput" class="output-input" maxlength="120" placeholder="例如：独立做了 6 题，订正 2 题">
-  <section aria-labelledby="timelineHeading"><div class="section-head"><h2 id="timelineHeading">今天的足迹</h2><span>每一步都算数</span></div><div class="tl" id="tl"></div></section>
+  <div class="today-links"><button id="btnTodayTasks" type="button">查看全部任务 <span aria-hidden="true">›</span></button><button id="btnMinimum" type="button">今天先看一眼计划</button></div>
+  <details class="today-fold today-secondary"><summary>补一句学习收获<span>选填</span></summary><div class="fold-body"><label class="sr-only" for="studyOutput">本次学习收获</label><input id="studyOutput" class="output-input" maxlength="120" placeholder="例如：做了 6 题，订正 2 题"></div></details>
+  <details class="today-fold today-secondary"><summary id="timelineHeading">今天已完成<span id="timelineSummary">查看记录与撤销</span></summary><div class="fold-body"><div class="tl" id="tl" aria-label="今天的学习记录"></div></div></details>
+  <details class="today-fold today-secondary"><summary>今天想休息一下<span>调整节奏</span></summary><div class="fold-body"><div class="rest-card"><button class="mini" id="btnRest" type="button">今天休息</button><p class="note" id="restNote"></p></div></div></details>
+</section>
+<section class="page" id="p-panel" aria-label="学习进度">
+  <header class="page-header"><div><span class="eyebrow">YOUR GROWTH</span><h1>学习进度</h1></div></header>
+  <div class="hud"><div class="hud-top"><div class="lv"><small>Lv</small><span id="plv">1</span></div><div class="hud-title" id="profileTitle">我的成长</div></div><div class="bar"><i id="pxp"></i></div><div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div><div class="chips"><div class="chip hot"><b id="streak">0</b><span>连续打卡日</span></div><div class="chip"><b id="dday">—</b><span id="ddlabel">倒计时</span></div><div class="chip"><b id="todayn">0</b><span>今日记录</span></div></div></div>
+  <p class="learning-days" id="learningDays">累计打卡 0 天 · 有效学习 0 天 · 本周达标 0/7</p>
   <section class="boss" id="boss" aria-label="备考学习覆盖进度" hidden></section>
-  <div class="rest-card"><button class="mini" id="btnRest" type="button">今天休息</button><p class="note" id="restNote"></p></div>
   <details class="today-fold" data-today="countdown"><summary>重要日子<span>倒计时</span></summary><div class="fold-body">
     <div class="taskhead"><h2>倒计时</h2><button class="mini" id="btnCdAdd" type="button">+ 添加</button></div><div class="cds" id="cds"></div>
     <div class="form" id="cdForm" hidden><div class="frow"><label for="cdName">名称</label><input id="cdName" maxlength="20" placeholder="例如：期末考试"></div><div class="frow"><label for="cdDate">日期</label><input id="cdDate" type="date"></div><div class="tools"><button id="cdSave" type="button">保存</button><button id="cdCancel" type="button">取消</button><button id="cdDel" type="button">删除</button></div></div>
@@ -35,11 +40,6 @@
   <details class="today-fold" data-today="gaps"><summary><span id="gapsTitle">待恢复</span><span>选一件重新开始</span></summary><div class="fold-body"><div class="gaps" id="gaps"></div></div></details>
   <details class="today-fold" data-today="report"><summary>今日结算<span>查看与分享</span></summary><div class="fold-body"><div class="rep" id="rep"></div><div class="tools"><button id="btnCopy" type="button">复制战报</button><button id="btnShare" type="button">分享战报</button></div></div></details>
   <details class="today-fold" data-today="weekly"><summary>本周回顾<span>给下周留个方向</span></summary><div class="fold-body"><div class="rep" id="weeklyRep"></div><button class="copybtn" id="btnWeeklyCopy" type="button">复制周回顾</button></div></details>
-</section>
-<section class="page" id="p-panel" aria-label="属性">
-  <header class="page-header"><div><span class="eyebrow">YOUR GROWTH</span><h1>成长，有迹可循。</h1></div></header>
-  <div class="hud"><div class="hud-top"><div class="lv"><small>Lv</small><span id="plv">1</span></div><div class="hud-title" id="profileTitle">我的成长</div></div><div class="bar"><i id="pxp"></i></div><div class="hud-meta"><span id="pxptxt">0 / 100</span><span id="ptotal">累计 0</span></div><div class="chips"><div class="chip hot"><b id="streak">0</b><span>连续打卡日</span></div><div class="chip"><b id="dday">—</b><span id="ddlabel">倒计时</span></div><div class="chip"><b id="todayn">0</b><span>今日记录</span></div></div></div>
-  <p class="learning-days" id="learningDays">累计打卡 0 天 · 有效学习 0 天 · 本周达标 0/7</p>
   <h2>六项属性</h2><div class="radar" id="radar"></div><div class="attrs" id="attrs"></div>
   <div class="section-head"><h2>近 16 周的足迹</h2><span>左右滑动 · 点选日期</span></div>
   <div class="hm"><div class="heat-layout"><div class="heat-weekdays" aria-hidden="true"><span></span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div id="heatScroll" class="heat-scroll" tabindex="0" aria-label="近16周学习热力图，可左右滚动"><div id="hmMonths" class="heat-months" aria-hidden="true"></div><div class="hmgrid" id="hm"></div></div></div><div class="hmlegend"><span>少</span><span class="sw" aria-hidden="true"><b style="background:#161d29"></b><b style="background:#4a3a17"></b><b style="background:#8a6b1f"></b><b style="background:#c9a03a"></b><b style="background:#ffcf5c"></b></span><span>多</span></div><p class="note" id="hmstat"></p><div class="hmdetail" id="hmdetail" hidden></div></div>
@@ -71,7 +71,7 @@
   <div class="setcard" data-sec="sync"><button class="setrow" type="button"><span class="lab">GitHub 云端备份</span><span class="val" id="vSync">未设置</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="hubtip">可选：把存档同步到私有仓库 guangcat/life-rpg-data。令牌仅存本机，不包含在导出备份中。电脑自动拉取需另外配置。</p><label class="sr-only" for="syncTok">GitHub token</label><input id="syncTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴仅限该仓库的 GitHub token"><div class="tools"><button id="btnSync" type="button">立即同步</button><button id="btnRestore" type="button">从云端恢复</button></div><div class="tools"><button id="btnSyncOff" type="button">停用同步</button><button id="btnOverwrite" type="button">用本机覆盖云端</button></div><p class="note" id="syncNote" role="status"></p></div></div></div>
   <div class="setcard" data-sec="cal"><button class="setrow" type="button"><span class="lab">日历提醒</span><span class="val" id="vCal">—</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="hubtip">按任务时间与频次导出，包含日历提醒。应用是源头，修改任务后需重新导出；建议使用单独的 Life RPG 日历。</p><div class="tools"><button id="btnIcsShare" type="button">分享到日历</button><button id="btnIcsDown" type="button">导出 .ics</button></div><p class="note" id="icsNote"></p></div></div></div>
   <div class="setcard swrow"><label class="lab" for="swSound">完成音效</label><label class="switch"><input type="checkbox" id="swSound" aria-label="完成音效"><span></span></label></div>
-  <div class="setcard" data-sec="data"><button class="setrow" type="button"><span class="lab">本机备份与恢复</span><span class="val" id="vData">—</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><div class="tools" id="dataTools"><button id="btnExp" type="button">导出 JSON 备份</button><button id="btnImport" type="button">导入备份</button><input type="file" id="fileImp" accept=".json,application/json" hidden></div><div class="tools"><button id="btnRecovery" type="button">恢复上一次存档</button><button id="btnPersist" type="button">保护本机存档</button></div><p class="note" id="storageState" role="status"></p><p class="note" id="bknote"></p></div></div></div>
+  <div class="setcard" data-sec="data"><button class="setrow" type="button"><span class="lab">本机备份与恢复</span><span class="val" id="vData">—</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><div id="saveWarning" class="save-warning" role="status" hidden></div><div class="tools" id="dataTools"><button id="btnExp" type="button">导出 JSON 备份</button><button id="btnImport" type="button">导入备份</button><input type="file" id="fileImp" accept=".json,application/json" hidden></div><div class="tools"><button id="btnRecovery" type="button">恢复上一次存档</button><button id="btnPersist" type="button">保护本机存档</button></div><p class="note" id="storageState" role="status"></p><p class="note" id="bknote"></p></div></div></div>
   <div id="demoBlock"><div class="setcard" data-sec="demo"><button class="setrow" type="button"><span class="lab">演示模式</span><span class="val" id="vDemo">关</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="note">使用假数据，适合把手机递给朋友体验。</p><div class="tools"><button id="btnDemo" type="button">进入演示</button><button id="btnDemoLock" type="button">演示并隐藏退出</button></div></div></div></div></div>
   <div class="setcard danger" data-sec="danger"><button class="setrow" type="button"><span class="lab red">重置所有进度</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="hubtip">将清空当前经验、记录与任务；先导出备份。重置前会保留一个本机恢复点，后续导入或重置会替换该恢复点。</p><button class="copybtn red" id="btnRst" type="button">重置所有进度</button></div></div></div>
 </section>
@@ -79,11 +79,12 @@
 <nav class="tabbar" aria-label="主导航">
 <button data-p="today" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>今天</span></button>
 <button data-p="tasks" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m3 6 2 2 3-4M11 6h10M3 13h4m4 0h10M3 20h4m4 0h10"/></svg><span>任务</span></button>
-<button data-p="panel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 20v-7h4v7m2 0V8h4v12m2 0V3h4v17M2 21h20"/></svg><span>属性</span></button>
+<button data-p="panel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 20v-7h4v7m2 0V8h4v12m2 0V3h4v17M2 21h20"/></svg><span>学习进度</span></button>
 <button data-p="setup" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--bg)"/><circle cx="15" cy="12" r="2" fill="var(--bg)"/><circle cx="10" cy="18" r="2" fill="var(--bg)"/></svg><span>设置</span></button>
 </nav>
 <div id="toast" role="status" aria-live="polite" aria-atomic="false"></div>
 <section id="levelCard" class="level-overlay" role="dialog" aria-modal="true" aria-labelledby="levelValue" hidden><div class="level-content"><span class="eyebrow">A LITTLE STRONGER</span><div class="level-mark" aria-hidden="true">✦</div><h2 id="levelValue">Lv 2</h2><h3 id="levelTitle">已在路上</h3><p>每一次开始，都在让你变得更强。</p><button id="btnLevelClose" class="copybtn" type="button">继续前进</button></div></section>
+<section id="saveDialog" class="level-overlay save-dialog" role="dialog" aria-modal="true" aria-labelledby="saveDialogTitle" hidden><div class="level-content"><h2 id="saveDialogTitle">这次记录还没有保存</h2><p id="saveDialogMessage"></p><button id="btnSaveExport" class="copybtn" type="button">先导出备份</button><button id="btnSaveSettings" class="copybtn" type="button">打开备份设置</button><button id="btnSaveClose" class="copybtn" type="button">稍后处理</button></div></section>
 <noscript>请启用 JavaScript 以使用战力面板。</noscript>
 <script type="module" src="./app.mjs"></script>
 </body>

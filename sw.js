@@ -1,4 +1,4 @@
-const CACHE = 'liferpg-20261025-study-v2';
+const CACHE = 'liferpg-20261026-today-v1';
 const ASSETS = [
   './', './index.html', './app.css', './app.mjs',
   './modules/state.mjs', './modules/sync.mjs',

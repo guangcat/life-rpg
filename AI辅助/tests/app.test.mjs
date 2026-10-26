@@ -244,3 +244,44 @@ test('旧版按名称新增的四级日期被Boss与配速采用，编辑不另�
   a.nodes.cdName.value='四级';a.nodes.cdDate.value='2027-06-19';a.nodes.cdSave.fire('click');
   assert.equal(a.run('S.cds.length'),1);assert.equal(a.run('S.cds[0].id'),'c123');assert.equal(a.run('Study.cet4Date(S.cds)'),'2027-06-19');
 });
+
+test('今天主卡写清学习动作，不用XP与待恢复次数挤占说明',async()=>{
+  const a=await boot();
+  assert.match(a.nodes.focus.innerHTML,/完成并打卡/);
+  assert.doesNotMatch(a.nodes.focus.innerHTML,/待恢复|\+40/);
+  a.nodes.btnTodayTasks.fire('click');assert.equal(a.run('page'),'tasks');
+});
+
+test('今天保底入口可直接记录，摘要随记录与撤销更新',async()=>{
+  const a=await boot();a.nodes.btnMinimum.fire('click');
+  assert.equal(a.run('S.log.at(-1).id'),'min_open');
+  assert.equal(a.run('studySummary().effectiveDays'),0);
+  assert.match(a.nodes.todaySummary.textContent,/1/);assert.equal(a.nodes.btnMinimum.disabled,true);
+  a.run('undoLog(S.log.at(-1).uid)');assert.match(a.nodes.todaySummary.textContent,/0/);assert.equal(a.nodes.btnMinimum.disabled,false);
+});
+
+test('受保护旧档仅在操作时弹窗，可关闭并导出原字节',async()=>{
+  const original='{bad json',a=await boot({'liferpg.v1':original});
+  assert.equal(a.nodes.saveDialog.hidden,true);
+  a.run('record("math_block")');assert.equal(a.nodes.saveDialog.hidden,false);
+  assert.equal(a.store['liferpg.v1'],original);assert.equal(a.run('S.log.length'),0);
+  a.nodes.btnSaveClose.fire('click');assert.equal(a.nodes.saveDialog.hidden,true);
+  a.run('record("math_block")');a.nodes.btnSaveExport.fire('click');
+  assert.equal(await a.exportText(),original);assert.equal(a.store['liferpg.v1'],original);
+});
+
+test('实际保存失败弹窗说明未保存，进入备份设置不清除当前记录',async()=>{
+  const a=await boot({},true);a.run('record("math_block")');
+  assert.equal(a.nodes.saveDialog.hidden,false);assert.match(a.nodes.saveDialogMessage.textContent,/未保存|还没保存/);
+  a.nodes.btnSaveSettings.fire('click');assert.equal(a.run('page'),'setup');assert.equal(a.run('S.log.length'),1);
+  assert.equal(a.nodes.saveDialog.hidden,true);
+});
+
+test('今天不再展示Boss与多组进度，设置内才有存档说明',()=>{
+  const html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+  const today=html.split('id="p-today"')[1].split('id="p-panel"')[0];
+  const panel=html.split('id="p-panel"')[1].split('id="p-tasks"')[0];
+  assert.doesNotMatch(today,/id="boss"|data-today="(?:countdown|progress|gaps|report|weekly)"/);
+  assert.match(panel,/id="boss"/);assert.match(panel,/id="tracks"/);
+  assert.ok(html.indexOf('id="saveWarning"')>html.indexOf('id="p-setup"'));
+});
