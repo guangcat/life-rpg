@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<title>更新 Life RPG</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100svh;padding:32px 20px;background:#0b0f17;color:#e7edf7;font:16px/1.75 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;display:grid;place-items:center}main{width:100%;max-width:420px;padding:28px 24px;border:1px solid #65532e;border-radius:20px;background:radial-gradient(400px 220px at 100% 0,#ffcf5c12,transparent),#141a26}.mark{color:#ffcf5c;font-size:13px;letter-spacing:.12em}h1{font-size:27px;line-height:1.4;margin:10px 0 18px}p{color:#a8b6ca;margin:12px 0}button{width:100%;min-height:50px;border:0;border-radius:11px;background:#ffcf5c;color:#211900;font:700 16px/1.5 inherit;padding:13px 16px;margin:16px 0 0;cursor:pointer}button:disabled{opacity:.65;cursor:wait}a{display:block;width:fit-content;min-height:44px;padding:10px 0;color:#a8b6ca;margin:10px auto 0}button:focus-visible,a:focus-visible{outline:2px solid #ffcf5c;outline-offset:5px}#status{font-size:14px;min-height:3.5em;margin-top:18px}#status[data-error=true]{color:#ffb5bf}
+</style>
+</head>
+<body>
+<main>
+  <span class="mark">LIFE RPG</span>
+  <h1>更新 Life RPG</h1>
+  <p>这里只更新程序，不会清空你的学习记录。</p>
+  <p>如果其他页面还有未保存的内容，请先在那里导出备份。更新不会替你关闭或刷新那些页面。</p>
+  <button id="installUpdate" type="button">安装更新并打开</button>
+  <p id="status" role="status" aria-live="polite">请保持联网。完成后，这个页面会回到学习首页。</p>
+  <a href="./">返回 Life RPG</a>
+</main>
+<script type="module">
+const button=document.getElementById('installUpdate'),status=document.getElementById('status');
+function message(text,error=false){status.textContent=text;status.dataset.error=String(error);}
+
+function waitForInstall(worker){
+  if(!worker)return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const finish=error=>{clearTimeout(timer);worker.removeEventListener('statechange',check);error?reject(error):resolve();};
+    const check=()=>{
+      if(worker.state==='installed'||worker.state==='activated')finish();
+      else if(worker.state==='redundant')finish(new Error('安装没有完成，旧版本仍可使用。请联网后重试。'));
+    };
+    timer=setTimeout(()=>finish(new Error('下载更新用时较长，请检查网络后重试。')),20000);
+    worker.addEventListener('statechange',check);check();
+  });
+}
+
+function waitForControl(worker){
+  const service=navigator.serviceWorker;
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const finish=error=>{clearTimeout(timer);service.removeEventListener('controllerchange',check);worker.removeEventListener('statechange',check);error?reject(error):resolve();};
+    const check=()=>{
+      if(worker.state==='redundant')finish(new Error('新版尚未启用，旧版本仍可使用。请稍后重试。'));
+      else if(worker.state==='activated'&&service.controller===worker)finish();
+    };
+    timer=setTimeout(()=>finish(new Error('新版尚未接管，请稍后再点一次更新。')),15000);
+    service.addEventListener('controllerchange',check);worker.addEventListener('statechange',check);
+    try{if(worker.state==='installed')worker.postMessage({type:'SKIP_WAITING'});check();}catch{finish(new Error('暂时无法启用新版，请稍后重试。'));}
+  });
+}
+
+button.addEventListener('click',async()=>{
+  if(button.disabled)return;
+  if(!globalThis.isSecureContext||!('serviceWorker' in navigator)){
+    message('此处无法安装更新。请用 Safari、Chrome 或 Edge 打开这个链接后重试。',true);return;
+  }
+  button.disabled=true;button.textContent='正在安装…';message('正在下载更新，请保持这个页面打开。');
+  try{
+    const registration=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+    await registration.update();
+    const installing=registration.installing;
+    await waitForInstall(installing);
+    const worker=registration.waiting||registration.active||installing;
+    if(!worker)throw new Error('更新尚未准备好，请联网后重试。');
+    message('正在启用新版…');await waitForControl(worker);
+    message('更新完成，正在打开 Life RPG…');location.replace('./');
+  }catch(error){message(/^[\u4e00-\u9fff]/.test(error.message||'')?error.message:'更新没有完成，请保持联网后重试。已有记录未改动。',true);}
+  finally{button.disabled=false;button.textContent='安装更新并打开';}
+});
+</script>
+</body>
+</html>
