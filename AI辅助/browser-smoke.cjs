@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
 const {chromium,devices}=require(process.argv[2]||'playwright');
 const root=path.resolve(__dirname,'..'),out=path.join(__dirname,'预览');
 let servedVersion=1;
-const allowed=new Set(['index.html','update.html','app.css','app.mjs','manifest.webmanifest','sw.js','icon-180.png','icon-192.png','icon-512.png','modules/state.mjs','modules/sync.mjs','modules/study.mjs','modules/study-view.mjs','modules/audio.mjs','modules/calendar.mjs']);
+const allowed=new Set(['index.html','update.html','app.css','app.mjs','manifest.webmanifest','sw.js','icon-180.png','icon-192.png','icon-512.png','modules/state.mjs','modules/sync.mjs','modules/study.mjs','modules/study-view.mjs','modules/timetable.mjs','modules/audio.mjs','modules/calendar.mjs']);
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.webmanifest':'application/manifest+json','.png':'image/png'};
 const server=http.createServer((req,res)=>{
   let file=decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\/life-rpg\//,'');
@@ -24,10 +24,15 @@ const server=http.createServer((req,res)=>{
     fs.mkdirSync(out,{recursive:true});
     const mobile={viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:devices['iPhone 13'].userAgent,deviceScaleFactor:1,reducedMotion:'reduce',timezoneId:'Asia/Shanghai'};
     const isolated=async(options=mobile)=>{
-      const isolatedContext=await browser.newContext(options),network={respond:null,blocked:[]};
+      const isolatedContext=await browser.newContext(options),network={respond:null,timetable:null,blocked:[]};
       await isolatedContext.route('**/*',route=>{
         const requested=new URL(route.request().url());
         if(requested.origin===new URL(url).origin)return route.continue();
+        if(requested.hostname==='api.github.com'&&requested.pathname.endsWith('/contents/timetable.json')){
+          if(!network.timetable)return route.fulfill({status:404,contentType:'application/json',body:'{}'});
+          assert.equal(route.request().method(),'GET');assert.equal(route.request().url().includes('synthetic-course-token'),false);
+          return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({encoding:'base64',content:Buffer.from(JSON.stringify(network.timetable)).toString('base64')})});
+        }
         if(requested.hostname==='api.github.com'&&network.respond)return network.respond(route);
         network.blocked.push(requested.origin+requested.pathname);return route.abort();
       });
@@ -45,6 +50,7 @@ const server=http.createServer((req,res)=>{
       if(fromDialog)await p.locator('#btnSaveExport').click();
       else{
         await p.locator('.tabbar [data-p="setup"]').click();
+        const syncRow=p.locator('[data-sec="sync"] > .setrow');if(await syncRow.getAttribute('aria-expanded')!=='true')await syncRow.click();
         const row=p.locator('[data-sec="data"] .setrow');if(await row.getAttribute('aria-expanded')!=='true')await row.click();
         await p.locator('#btnExp').click();
       }
@@ -97,7 +103,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('liferpg.today')||'{}').progress===true);
     await page.reload();await page.locator('#focus').waitFor();await nav('panel');assert.equal(await page.locator('details[data-today="progress"]').evaluate(el=>el.open),true);
     console.log('PASS profile, cutoff, heatmap labels, persisted folds');
-    await nav('setup');await page.locator('[data-sec="data"] .setrow').click();
+    await nav('setup');await page.locator('[data-sec="sync"] > .setrow').click();await page.locator('[data-sec="data"] .setrow').click();
     const before=await page.evaluate(()=>localStorage.getItem('liferpg.v1'));
     await page.locator('#fileImp').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"attr":null,"log":{}}')});
     await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>localStorage.getItem('liferpg.v1')),before);
@@ -155,7 +161,7 @@ const server=http.createServer((req,res)=>{
       const content=Buffer.from(JSON.stringify(invalidRemote?{attr:null,log:{}}:remoteState)).toString('base64');
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({sha:remoteSha,encoding:'base64',content})});
     };
-    await nav('setup');await page.locator('[data-sec="sync"] .setrow').click();
+    await nav('setup');const syncRow=page.locator('[data-sec="sync"] > .setrow');if(await syncRow.getAttribute('aria-expanded')!=='true')await syncRow.click();
     await page.locator('#syncTok').fill(fakeToken);await page.locator('#btnSync').click();
     await page.waitForFunction(()=>/同步基线/.test(document.getElementById('syncNote').textContent));
     const beforeConflict=await page.evaluate(()=>localStorage.getItem('liferpg.v1'));
@@ -174,7 +180,9 @@ const server=http.createServer((req,res)=>{
     remoteSha='remote-b';await page.locator('#btnSync').click();
     await page.waitForFunction(()=>/同步基线/.test(document.getElementById('syncNote').textContent));
     assert.equal(syncCalls.filter(method=>method==='PUT').length,1);
-    await page.locator('#btnSyncOff').click();assert.equal(await page.evaluate(()=>localStorage.getItem('liferpg.sync')),null);
+    await page.locator('#btnSyncOff').click();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.sync')).enabled),false);
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.sync')).token),fakeToken);
+    await page.locator('#btnSyncOff').click();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.sync')).enabled),true);
     network.respond=null;
     console.log('PASS mocked sync baseline conflict, explicit overwrite 409, invalid restore protection, accepted restore and stop');
     for(const width of [360,390,768]){await page.setViewportSize({width,height:844});for(const name of ['today','tasks','panel','setup']){await nav(name);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no overflow '+name+' '+width);if(width!==768)await page.screenshot({path:path.join(out,name+'_'+width+'.png'),fullPage:true});}}
@@ -301,5 +309,42 @@ const server=http.createServer((req,res)=>{
     assert.equal(await updater.evaluate(()=>localStorage.getItem('liferpg.v1')),protectedRaw);
     assert.deepEqual(repairErrors,[]);assert.deepEqual(repairRun.network.blocked,[]);await repairRun.context.close();
     console.log('PASS direct updater bypasses the cached shell, installs a new worker and preserves original bytes without reloading another client');
+    const referenceRun=await isolated(),referencePage=await fixedPage(referenceRun.context),referenceErrors=[];
+    referenceRun.network.timetable={schemaVersion:1,term:'测试学期',campus:'测试校区',semesterStart:null,
+      periodTimes:{standard:[{period:1,start:'08:30',end:'09:15'}],practice:[{period:1,start:'08:30',end:'09:15'}]},
+      courses:[{id:'mock-course',name:'模拟课程甲',weekday:1,periods:[1],weeks:{start:1,end:8,parity:'all'},timeGroup:'practice',location:'测试教室',attendanceRequired:true}],notes:[],sources:[]};
+    referencePage.on('pageerror',e=>referenceErrors.push(e.message));await referencePage.goto(url);await referencePage.locator('#focusDo').waitFor();
+    const beforeReference=await referencePage.evaluate(()=>localStorage.getItem('liferpg.v1'));
+    await referencePage.locator('.tabbar [data-p="setup"]').click();
+    assert.equal(await referencePage.locator('#p-setup > [data-sec="data"]').count(),0,'advanced restore is not a standalone card');
+    await referencePage.locator('[data-sec="sync"] > .setrow').click();await referencePage.locator('#syncTok').fill('synthetic-course-token');await referencePage.locator('#syncTok').press('Tab');
+    await referencePage.waitForFunction(()=>!!localStorage.getItem('liferpg.timetable'));
+    assert.equal(await referencePage.evaluate(()=>localStorage.getItem('liferpg.v1')),beforeReference);
+    await referencePage.locator('.tabbar [data-p="tasks"]').click();await referencePage.locator('#timetableDetails > summary').click();
+    assert.match(await referencePage.locator('#timetableReference').textContent(),/模拟课程甲.*08:30—09:15/);
+    await referencePage.evaluate(async()=>{await navigator.serviceWorker.ready;});await referencePage.waitForFunction(()=>!!navigator.serviceWorker.controller);
+    await referenceRun.context.setOffline(true);await referencePage.reload();await referencePage.locator('#focusDo').waitFor();
+    await referencePage.locator('.tabbar [data-p="tasks"]').click();await referencePage.locator('#timetableDetails > summary').click();
+    assert.match(await referencePage.locator('#timetableReference').textContent(),/模拟课程甲/);
+    const privateDemo=await fixedPage(referenceRun.context);await privateDemo.goto(url+'?demo=1&lock=1');await privateDemo.locator('#focusDo').waitFor();
+    assert.equal(await privateDemo.locator('#timetableDetails').isVisible(),false);assert.doesNotMatch(await privateDemo.locator('main').textContent(),/模拟课程甲/);
+    assert.deepEqual(referenceErrors,[]);assert.deepEqual(referenceRun.network.blocked,[]);await referenceRun.context.close();
+    console.log('PASS private timetable loads read-only, remains available offline, stays out of demo and does not change study progress');
+    const repeatRun=await isolated(),repeatPage=await fixedPage(repeatRun.context),repeatErrors=[];
+    repeatPage.on('pageerror',e=>repeatErrors.push(e.message));await repeatPage.goto(url);await repeatPage.locator('#focusDo').waitFor();
+    const oldRepeated=await repeatPage.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.v1')));
+    oldRepeated.log=[5,7,8].map((xp,index)=>({id:'math_block',n:'模拟旧记录',c:'math',xp,d:'2026-10-24',tm:'09:00',ts:Date.parse('2026-10-24T09:00:00+08:00')+index}));
+    oldRepeated.attr.math=20;oldRepeated.days={'2026-10-24':{n:3,xp:20}};
+    repeatRun.network.respond=route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({sha:'synthetic-legacy-sha',encoding:'base64',content:Buffer.from(JSON.stringify(oldRepeated)).toString('base64')})});
+    await repeatPage.locator('.tabbar [data-p="setup"]').click();await repeatPage.locator('[data-sec="sync"] > .setrow').click();
+    await repeatPage.locator('#syncTok').fill('synthetic-legacy-token');repeatPage.once('dialog',d=>d.accept());await repeatPage.locator('#btnRestore').click();
+    await repeatPage.waitForFunction(()=>JSON.parse(localStorage.getItem('liferpg.v1')).log.length===3);
+    let repeated=await repeatPage.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.v1')));
+    assert.equal(repeated.attr.math,20);assert.ok(repeated.log.every(l=>l.legacyRepeat===true));assert.equal(new Set(repeated.log.map(l=>l.uid)).size,3);
+    await repeatPage.reload();await repeatPage.locator('#focusDo').waitFor();repeated=await repeatPage.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.v1')));assert.equal(repeated.log.length,3);assert.equal(repeated.attr.math,20);
+    await repeatPage.locator('.tabbar [data-p="tasks"]').click();await repeatPage.locator('#tasks [data-id="math_block"]').click();assert.equal(await repeatPage.locator('#tasks [data-id="math_block"]').isEnabled(),false);
+    repeated=await repeatPage.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.v1')));assert.equal(repeated.log.length,4);assert.equal(repeated.attr.math,60);assert.deepEqual(repeated.log.slice(0,3).map(l=>l.xp),[5,7,8]);
+    assert.deepEqual(repeatErrors,[]);assert.deepEqual(repeatRun.network.blocked,[]);await repeatRun.context.close();
+    console.log('PASS repeated legacy records restore from synthetic cloud without losing XP, survive reload and keep new daily completions unique');
   }finally{await browser.close();}
 })().then(()=>server.close()).catch(error=>{console.error(error);server.close();process.exitCode=1;});

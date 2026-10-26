@@ -149,9 +149,10 @@ function stableUid(entry) {
   return `legacy_${hash.toString(16).padStart(16, '0')}`;
 }
 
-function normalizeLog(entries, keys) {
+function normalizeLog(entries, keys, preserveLegacyRepeats = false) {
   const uids = new Set();
-  const completions = new Set();
+  const completions = new Map();
+  const legacy = preserveLegacyRepeats && Array.isArray(entries) && entries.length > 0 && entries.every(entry => entry?.uid === undefined);
   return array(entries, 'log').map((entry, index) => {
     object(entry, `log[${index}]`);
     identifier(entry.id, 'log.id'); text(entry.n, 'log.n'); category(entry.c, keys, 'log.c');
@@ -159,12 +160,20 @@ function normalizeLog(entries, keys) {
     if (entry.tm === undefined) {
       const date = new Date(entry.ts); entry.tm = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
     } else if (typeof entry.tm !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(entry.tm)) fail('log.tm 无效');
-    if (entry.uid === undefined) entry.uid = stableUid(entry);
+    if (entry.legacyRepeat !== undefined && typeof entry.legacyRepeat !== 'boolean') fail('log.legacyRepeat 必须为布尔值');
+    if (entry.uid === undefined) {
+      const base = stableUid(entry); entry.uid = base;
+      if (legacy) { let suffix = 1; while (uids.has(entry.uid)) entry.uid = `${base}_${suffix++}`; }
+    }
     identifier(entry.uid, 'log.uid');
     if (uids.has(entry.uid)) fail('log.uid 不能重复');
     const completion = `${entry.id}/${entry.d}`;
-    if (completions.has(completion)) fail('同一任务同一天不能重复完成');
-    uids.add(entry.uid); completions.add(completion);
+    const previous = completions.get(completion);
+    if (previous) {
+      if (legacy) { previous.legacyRepeat = true; entry.legacyRepeat = true; }
+      else if (previous.legacyRepeat !== true || entry.legacyRepeat !== true) fail('同一任务同一天不能重复完成');
+    }
+    uids.add(entry.uid); completions.set(completion, entry);
     return entry;
   });
 }
@@ -248,14 +257,15 @@ function validateRestDays(restDays, log, today) {
 }
 
 export function normalizeState(raw, { cats = DEFAULT_CATS, defaultTasks = [], tracks = [],
-  defaultCds = [], taskVersion = 1, now = Date.now() } = {}) {
+  defaultCds = [], taskVersion = 1, now = Date.now(), preserveLegacyRepeats = false } = {}) {
   object(raw, 'state');
   const result = clone(raw);
   const keys = categoryKeys(cats);
   timestamp(now, 'now'); number(taskVersion, 'taskVersion', true);
   validateAggregate(result.attr, result.days);
   if (result.log === undefined && own(result, 'attr')) fail('存档有 attr 却缺少 log，无法安全恢复 XP');
-  result.log = normalizeLog(result.log === undefined ? [] : result.log, keys);
+  if (typeof preserveLegacyRepeats !== 'boolean') fail('旧记录兼容设置必须为布尔值');
+  result.log = normalizeLog(result.log === undefined ? [] : result.log, keys, preserveLegacyRepeats);
   const stats = deriveStats(result.log, keys);
   const warnings = [];
   if (result.attr !== undefined && !equalNumbers(result.attr, stats.attr)) warnings.push('旧属性 XP 与日志不一致，已依据日志重新汇总。');

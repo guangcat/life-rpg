@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../../sw.js', import.meta.url), 'utf8');
 const scope = 'https://example.test/life-rpg/';
-const required = ['./', './index.html', './app.css', './app.mjs', './modules/state.mjs', './modules/sync.mjs', './modules/study.mjs', './modules/study-view.mjs', './modules/audio.mjs', './modules/calendar.mjs', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const required = ['./', './index.html', './app.css', './app.mjs', './modules/state.mjs', './modules/sync.mjs', './modules/study.mjs', './modules/study-view.mjs', './modules/timetable.mjs', './modules/audio.mjs', './modules/calendar.mjs', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 function harness(fetchImpl = async () => new Response('static')) {
   const handlers = {}, buckets = new Map(), calls = [];
   let skipped = 0, claimed = 0;

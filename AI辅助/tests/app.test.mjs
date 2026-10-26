@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 async function boot(initial = {}, failWrite = false, clock) {
-  const nodes = {}, store = {...initial};
+  const nodes = {}, store = {...initial},windowListeners={};
   let exportedBlob;
   function element(tag = 'div') {
     return {tagName: tag.toUpperCase(), value: '', textContent: '', innerHTML: '', hidden: false,
@@ -19,7 +19,7 @@ async function boot(initial = {}, failWrite = false, clock) {
       remove(){this.removed=true;}, focus(){}, select(){}, click(){this.fire('click');},
       showModal(){this.hidden=false;}, close(){this.hidden=true;}};
   }
-  const context = {console, TextEncoder, TextDecoder,
+  const context = {console, TextEncoder, TextDecoder, atob, btoa,
     URL: {createObjectURL:blob=>{exportedBlob=blob;return 'blob:test';},revokeObjectURL(){}}, Blob, AbortController,
     setTimeout(){return 1;}, clearTimeout(){}, setInterval(){return 1;}, clearInterval(){},
     confirm:()=>true, matchMedia:()=>({matches:true}),
@@ -29,10 +29,10 @@ async function boot(initial = {}, failWrite = false, clock) {
     document:{hidden:false,body:element('body'),activeElement:null,
       getElementById:id=>nodes[id]??=(element()),createElement:element,
       querySelector:()=>null,querySelectorAll:selector=>selector.includes('weekday')?Object.values(nodes).filter(el=>el.name==='weekday'&&(!selector.includes(':checked')||el.checked)):[],addEventListener(){}}};
-  context.window=context;context.addEventListener=()=>{};context.scrollTo=()=>{};
+  context.window=context;context.addEventListener=(name,fn)=>{(windowListeners[name]??=[]).push(fn);};context.scrollTo=()=>{};
   if(clock){const fixed=new Date(clock).getTime();context.Date=class extends Date{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};}
   vm.createContext(context);
-  for(const [file,name] of [['state','Model'],['sync','Sync'],['audio','AudioEngine'],['calendar','Calendar'],['study','Study'],['study-view','StudyView']]){
+  for(const [file,name] of [['state','Model'],['sync','Sync'],['audio','AudioEngine'],['calendar','Calendar'],['study','Study'],['study-view','StudyView'],['timetable','Timetable']]){
     const module=fs.readFileSync(new URL('../../modules/'+file+'.mjs',import.meta.url),'utf8');
     const exports=[...module.matchAll(/export\s+(?:function|const)\s+(\w+)/g)].map(m=>m[1]);
     vm.runInContext('globalThis.'+name+'=(()=>{'+module.replace(/\bexport\s+/g,'')+';return {'+exports.join(',')+'};})()',context);
@@ -40,7 +40,7 @@ async function boot(initial = {}, failWrite = false, clock) {
   context.createGitHubSync=context.Sync.createGitHubSync;
   const src=fs.readFileSync(new URL('../../app.mjs',import.meta.url),'utf8').replace(/^import .*?;\s*$/gm,'');
   vm.runInContext(src,context,{timeout:5000});
-  return {nodes,store,run:s=>vm.runInContext(s,context),exportText:()=>exportedBlob.text()};
+  return {nodes,store,run:s=>vm.runInContext(s,context),exportText:()=>exportedBlob.text(),fireWindow:(name,event)=>{for(const fn of windowListeners[name]||[])fn(event);}};
 }
 
 test('冷启动进入今天页，不被上次设置页截住',async()=>{
@@ -338,4 +338,93 @@ test('接管期间的新未保存改动会阻止刷新，再导出后可继续�
   assert.equal(a.run('activations'),1);assert.equal(a.run('reloads'),0);assert.equal(a.run('S.tracks.vocab'),37);
   a.nodes.btnExp.fire('click');await a.run('forceUpdate()');assert.equal(a.run('reloads'),1);
   assert.equal(JSON.parse(await a.exportText()).tracks.vocab,37);
+});
+
+test('暂停保留连接与SHA，恢复和同令牌重填不清空已有同步基线',async()=>{
+  const original={token:'synthetic-pause-token',sha:'known-sha',lastSync:'2026-10-20T12:00:00Z'};
+  const a=await boot({'liferpg.sync':JSON.stringify(original)});a.nodes.btnSyncOff.fire('click');
+  assert.deepEqual(JSON.parse(a.store['liferpg.sync']),{...original,enabled:false});assert.equal(a.run('syncClient'),null);
+  assert.equal(a.nodes.vSync.textContent,'已暂停');assert.equal(a.nodes.btnSyncOff.textContent,'恢复自动同步');
+  a.nodes.syncTok.value='';a.nodes.syncTok.fire('change');assert.equal(JSON.parse(a.store['liferpg.sync']).token,original.token);
+  a.nodes.btnSyncOff.fire('click');assert.equal(JSON.parse(a.store['liferpg.sync']).enabled,true);assert.equal(JSON.parse(a.store['liferpg.sync']).sha,original.sha);
+  a.nodes.syncTok.value=original.token;a.nodes.syncTok.fire('change');assert.equal(JSON.parse(a.store['liferpg.sync']).sha,original.sha);
+  a.nodes.btnExp.fire('click');assert.doesNotMatch(await a.exportText(),/synthetic-pause-token/);
+});
+
+test('暂停后远端变化，恢复只按旧SHA核对，不自动采用或覆盖新版',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-token',sha:'old',enabled:false})});
+  a.run('var syncCalls=[];fetch=async(_url,options)=>{if(!String(_url).includes("/contents/backup.json"))return {ok:false,status:404};syncCalls.push(options.method);return {ok:true,status:200,json:async()=>({sha:"remote-new"})};}');
+  assert.equal(await a.run('pushSync(true)'),false);assert.equal(a.run('syncCalls.length'),0);assert.match(a.nodes.syncNote.textContent,/暂停/);
+  a.nodes.btnSyncOff.fire('click');assert.equal(a.run('syncCalls.length'),0);
+  assert.equal(await a.run('pushSync(true)'),false);assert.equal(a.run('syncCalls.join(",")'),'GET');
+  assert.equal(JSON.parse(a.store['liferpg.sync']).sha,'old');assert.match(a.nodes.syncNote.textContent,/同步基线/);
+});
+
+test('跨标签暂停停止在途GET，不删除令牌或继续PUT',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-token',sha:'old'})});
+  a.run('var syncCalls=[],resolveSyncGet;fetch=(_url,options)=>{if(!String(_url).includes("/contents/backup.json"))return Promise.resolve({ok:false,status:404});syncCalls.push(options.method);return new Promise(resolve=>{resolveSyncGet=resolve;});};setupSync();var inFlightSync=pushSync(true)');
+  await new Promise(resolve=>setImmediate(resolve));
+  const paused={token:'synthetic-token',sha:'old',enabled:false};a.store['liferpg.sync']=JSON.stringify(paused);a.fireWindow('storage',{key:'liferpg.sync',newValue:a.store['liferpg.sync']});
+  a.run('resolveSyncGet({ok:true,status:200,json:async()=>({sha:"old"})})');assert.equal(await a.run('inFlightSync'),false);
+  assert.equal(a.run('syncCalls.join(",")'),'GET');assert.deepEqual(JSON.parse(a.store['liferpg.sync']),paused);assert.equal(a.run('syncClient'),null);
+});
+
+test('另一标签只更新SHA不会替换本页client的独立基线',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-token',sha:'old'})});
+  a.run('var syncCalls=[];fetch=async(_url,options)=>{if(!String(_url).includes("/contents/backup.json"))return {ok:false,status:404};syncCalls.push(options.method);return {ok:true,status:200,json:async()=>({sha:"new"})};};setupSync();var originalClient=syncClient');
+  a.store['liferpg.sync']=JSON.stringify({token:'synthetic-token',sha:'new'});a.fireWindow('storage',{key:'liferpg.sync',newValue:a.store['liferpg.sync']});
+  assert.equal(a.run('syncClient===originalClient'),true);assert.equal(await a.run('pushSync(true)'),false);assert.equal(a.run('syncCalls.join(",")'),'GET');
+  assert.equal(JSON.parse(a.store['liferpg.sync']).sha,'new');assert.match(a.nodes.syncNote.textContent,/同步基线/);
+});
+
+test('暂停配置写入失败仍停止本页同步，恢复需成功保存配置',async()=>{
+  const original={token:'synthetic-token',sha:'old'},a=await boot({'liferpg.sync':JSON.stringify(original)},true);
+  a.nodes.btnSyncOff.fire('click');assert.equal(a.run('syncClient'),null);assert.equal(a.run('syncCfg().enabled'),false);
+  assert.deepEqual(JSON.parse(a.store['liferpg.sync']),original);assert.match(a.nodes.syncNote.textContent,/暂停.*本页|本页.*暂停/);
+  a.nodes.btnSyncOff.fire('click');assert.equal(a.run('syncClient'),null);assert.equal(a.run('syncCfg().enabled'),false);
+});
+
+test('在途PUT完成时再次检查暂停配置，不把暂停或令牌状态写回旧值',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-token',sha:'old'})});
+  a.run('var syncCalls=[],resolveSyncPut;fetch=async(_url,options)=>{if(!String(_url).includes("/contents/backup.json"))return {ok:false,status:404};syncCalls.push(options.method);if(options.method==="GET")return {ok:true,status:200,json:async()=>({sha:"old"})};return new Promise(resolve=>{resolveSyncPut=resolve;});};setupSync();var inFlightSync=pushSync(true)');
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(a.run('syncCalls.join(",")'),'GET,PUT');
+  const paused={token:'synthetic-token',sha:'old',enabled:false};a.store['liferpg.sync']=JSON.stringify(paused);
+  // Deliberately do not deliver a storage event: the live-config guard must still win.
+  a.run('resolveSyncPut({ok:true,status:200,json:async()=>({content:{sha:"new"}})})');
+  assert.equal(await a.run('inFlightSync'),false);assert.deepEqual(JSON.parse(a.store['liferpg.sync']),paused);
+});
+
+const referenceTimetable=()=>({schemaVersion:1,term:'测试学期',campus:'测试校区',semesterStart:null,
+  periodTimes:{standard:[{period:1,start:'08:30',end:'09:15'}],practice:[{period:1,start:'08:30',end:'09:15'}]},
+  courses:[{id:'test-course',name:'<img onerror=alert(1)>',weekday:1,periods:[1],weeks:{start:1,end:8,parity:'all'},timeGroup:'practice',location:'测试教室',attendanceRequired:true}],notes:[],sources:[]});
+test('缓存课表离线可读且名称转义，不改任务或学习存档',async()=>{
+  const a=await boot({'liferpg.timetable':JSON.stringify(referenceTimetable())});
+  const snapshot=a.store['liferpg.v1'];assert.equal(a.nodes.timetableDetails.hidden,false);
+  assert.match(a.nodes.timetableReference.innerHTML,/&lt;img/);assert.doesNotMatch(a.nodes.timetableReference.innerHTML,/<img/);
+  assert.equal(a.store['liferpg.v1'],snapshot);assert.equal(a.run('S.log.length'),0);
+  a.nodes.btnExp.fire('click');assert.doesNotMatch(await a.exportText(),/test-course/);
+});
+test('课表只读下载缓存，课程数据不进入学习存档或改变XP',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-timetable-token'})});await new Promise(resolve=>setImmediate(resolve));
+  const original=a.store['liferpg.v1'],content=Buffer.from(JSON.stringify(referenceTimetable())).toString('base64');
+  a.run(`fetch=async(url,options)=>{if(!url.endsWith('/contents/timetable.json')||options.method!=='GET')throw Error('unexpected request');return {ok:true,json:async()=>({encoding:'base64',content:${JSON.stringify(content)}})};}`);
+  assert.equal(await a.run('loadTimetable()'),true);assert.equal(a.run('page'),'tasks');assert.equal(a.nodes.timetableDetails.open,true);
+  assert.equal(a.store['liferpg.v1'],original);assert.equal(JSON.parse(a.store['liferpg.timetable']).courses.length,1);
+  assert.doesNotMatch(a.store['liferpg.timetable'],/synthetic-timetable-token/);
+});
+test('读取课表期间暂停同步，会忽略响应并保留原有缓存与记录',async()=>{
+  const a=await boot({'liferpg.sync':JSON.stringify({token:'synthetic-timetable-token'})});await new Promise(resolve=>setImmediate(resolve));
+  a.run('var resolveTimetable;fetch=()=>new Promise(resolve=>{resolveTimetable=resolve;});var pendingTimetable=loadTimetable()');
+  a.nodes.btnSyncOff.fire('click');const original=a.store['liferpg.v1'],content=Buffer.from(JSON.stringify(referenceTimetable())).toString('base64');
+  a.run(`resolveTimetable({ok:true,json:async()=>({encoding:'base64',content:${JSON.stringify(content)}})})`);
+  assert.equal(await a.run('pendingTimetable'),false);assert.equal(a.store['liferpg.timetable'],undefined);assert.equal(a.store['liferpg.v1'],original);
+});
+
+test('旧版同日多次记录能恢复且不丢XP，新打卡仍不能重复添加',async()=>{
+  const a=await boot({},false,'2026-10-25T12:00:00');
+  a.run(`var old=JSON.parse(JSON.stringify(S));old.log=[12,15].map((xp,index)=>({id:'math_block',n:'合成旧记录',c:'math',xp,d:day(),tm:'09:00',ts:Date.now()-1000+index}));old.attr.math=27;old.days={[day()]:{n:2,xp:27}}`);
+  assert.equal(a.run('installState(old,"云端恢复")'),true);assert.equal(a.run('S.log.length'),2);assert.equal(a.run('S.attr.math'),27);
+  a.run('record("math_block")');assert.equal(a.run('S.log.length'),2);assert.equal(a.run('S.attr.math'),27);
+  const saved=a.store['liferpg.v1'],b=await boot({'liferpg.v1':saved},false,'2026-10-25T12:00:00');
+  assert.equal(b.run('storageBlocked'),false);assert.equal(b.run('S.log.length'),2);assert.equal(b.run('S.attr.math'),27);
 });

@@ -47,6 +47,25 @@ test('legacy records gain stable identities without replacing their task id', ()
   assert.equal(normalize(result).log[0].uid, result.log[0].uid);
 });
 
+test('explicit legacy-repeat migration preserves every event and XP across reload and reordering',()=>{
+  const first=log(),second=log({ts:first.ts+1,xp:15});delete first.uid;delete second.uid;
+  const value=raw({log:[first,second],attr:{math:35,eng:0},days:{'2026-10-24':{n:2,xp:35}}}),before=structuredClone(value);
+  const opts={...options,preserveLegacyRepeats:true};const result=state.normalizeState(value,opts);
+  assert.equal(result.log.length,2);assert.equal(result.attr.math,35);assert.equal(result.days['2026-10-24'].n,2);
+  assert.ok(result.log.every(row=>row.legacyRepeat===true));assert.ok(result.log.every(row=>row.id==='daily'));
+  const again=state.normalizeState({...result,log:[...result.log].reverse()},opts);
+  assert.deepEqual(again.log.map(x=>x.uid).sort(),result.log.map(x=>x.uid).sort());assert.equal(again.attr.math,35);assert.deepEqual(value,before);
+});
+test('identical legacy events get distinct stable IDs and undo only removes the selected event',()=>{
+  const entry=log();delete entry.uid;const value=raw({log:[entry,structuredClone(entry)]}),opts={...options,preserveLegacyRepeats:true};
+  const result=state.normalizeState(value,opts);assert.equal(new Set(result.log.map(x=>x.uid)).size,2);
+  assert.deepEqual(state.normalizeState(value,opts).log.map(x=>x.uid),result.log.map(x=>x.uid));
+  const removed=result.log[0].uid;assert.equal(state.removeLog(result,removed,cats),true);assert.equal(result.log.length,1);assert.equal(result.attr.math,20);
+});
+test('legacy compatibility does not permit new unmarked duplicate completions',()=>{
+  assert.throws(()=>state.normalizeState(raw({log:[log(),log({uid:'log_b'})]}),{...options,preserveLegacyRepeats:true}),/重复完成/);
+});
+
 test('old valid tasks survive migration and defaults are appended once by id', () => {
   const custom = { id: 'custom', n: '自定义', c: 'eng', xp: 7, added: '2026-10-01' };
   const value = raw({ tv: 1, tasks: [{ ...options.defaultTasks[0], n: '我改过的任务', xp: 8 }, custom] });
