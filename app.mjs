@@ -4,9 +4,11 @@ import * as AudioEngine from './modules/audio.mjs';
 import * as Calendar from './modules/calendar.mjs';
 import * as Study from './modules/study.mjs';
 import * as StudyView from './modules/study-view.mjs';
+import * as Timetable from './modules/timetable.mjs';
 
 let S=null,syncClient=null,storageBlocked=false,blockedOriginal=false,startupWarning='',lastRenderedDay='',heatPositioned=false,persistedRaw=null;
 let syncStat='',syncKind='idle';
+let syncPausedForPage=false,syncClientToken='';
 let saveDialogReturnFocus=null;
 let lastUpdateExport=null,protectedUpdateView='',pendingUpdateRefresh=false;
 /* URL 标志位也用于无写入的演示模式。 */
@@ -29,7 +31,10 @@ const UIKEY=DEMO?'liferpg.demo.ui':'liferpg.ui';
 const SYNC_REPO='guangcat/life-rpg-data';
 const SYNC_PATH='backup.json';
 const SYNC_KEY='liferpg.sync';
-const syncCfg=function(){try{return JSON.parse(localStorage.getItem(SYNC_KEY)||'{}');}catch(e){return {};}};
+const syncCfg=function(){try{const config=JSON.parse(localStorage.getItem(SYNC_KEY)||'{}');return config&&typeof config==='object'&&!Array.isArray(config)?{...config,...(syncPausedForPage?{enabled:false}:{})}:{};}catch(e){return {};}};
+const TIMETABLE_KEY='liferpg.timetable';
+let timetable=null,timetableLoading=false;
+if(!DEMO)try{const raw=localStorage.getItem(TIMETABLE_KEY);if(raw)timetable=Timetable.normalizeTimetable(JSON.parse(raw));}catch{}
 
 const CATS=[
   {k:'math', n:'数学', c:'#4f8cff', g:'∑'},
@@ -115,7 +120,7 @@ function blank(){
 /* 已存在的任务、四级日期和累计轨道全部沿用。统计不一致的旧档不自动校准写回。 */
 function normalize(raw){
   const normalized=Model.normalizeState(raw,{cats:CATS,defaultTasks:Array.isArray(raw?.tasks)?[]:freshTasks(),tracks:TRACKS,
-    defaultCds:defaultCds(),taskVersion:TASK_SET});
+    defaultCds:defaultCds(),taskVersion:TASK_SET,preserveLegacyRepeats:true});
   if(normalized.migrationWarnings.some(w=>w.startsWith('旧属性 XP')||w.startsWith('旧每日统计'))){
     throw new Error('原经验或每日统计与日志不一致，请先导出原始存档核对；不会自动改写。');
   }
@@ -682,6 +687,45 @@ function render(){
   renderBoss();
   renderSound();
   renderSetup();
+  renderTimetable();
+}
+
+function renderTimetable(){
+  const details=document.getElementById('timetableDetails'),box=document.getElementById('timetableReference');
+  document.getElementById('btnTimetableLoad').disabled=DEMO||timetableLoading;
+  details.hidden=DEMO||!timetable;if(!timetable||DEMO){box.innerHTML='';return;}
+  const days=['','周一','周二','周三','周四','周五','周六','周日'];
+  box.innerHTML='<p class="note">'+esc(timetable.campus)+' · '+esc(timetable.term)+'</p>'
+    +days.slice(1).map((name,index)=>{
+      const courses=Timetable.coursesOn(timetable,{weekday:index+1,includeExempt:true});
+      if(!courses.length)return '';
+      return '<section class="course-day"><h3>'+name+'</h3>'+courses.map(course=>{
+        const time=Timetable.courseTime(timetable,course),weeks=course.weeks;
+        return '<div class="course-reference'+(course.attendanceRequired?'':' exempt')+'"><b>'+esc(course.name)+(course.attendanceRequired?'':' · 重修免听')+'</b><span>'
+          +esc(time.start)+'—'+esc(time.end)+' · 第'+weeks.start+'—'+weeks.end+'周'+(weeks.parity==='odd'?'（单周）':weeks.parity==='even'?'（双周）':'')+'</span><span>'+esc(course.location)+'</span></div>';
+      }).join('')+'</section>';
+    }).join('');
+  document.getElementById('timetableStatus').textContent='课表已保存，可离线查看。';
+}
+async function loadTimetable({quiet=false}={}){
+  if(DEMO||timetableLoading)return false;
+  if(quiet&&timetable)return true;
+  const config=syncCfg();
+  if(!config.token||config.enabled===false){
+    if(!quiet){showPage('setup');if(!setupOpen.sync)toggleSec('sync');if(!config.token)document.getElementById('syncTok').focus();toast(config.enabled===false?'请先恢复自动同步，再读取课表':'请先连接 GitHub，再读取课表');}
+    return false;
+  }
+  timetableLoading=true;renderTimetable();const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+  try{
+    const next=await Timetable.fetchTimetable({repo:SYNC_REPO,token:config.token,signal:controller.signal});
+    const current=syncCfg();if(current.token!==config.token||current.enabled===false)return false;
+    timetable=next;let cached=true;try{localStorage.setItem(TIMETABLE_KEY,JSON.stringify(next));}catch{cached=false;}
+    renderTimetable();
+    if(!cached)document.getElementById('timetableStatus').textContent='课表已读取，本次仅保留在当前页面。';
+    if(!quiet){showPage('tasks');document.getElementById('timetableDetails').open=true;toast('课表已读取，学习记录未改变');}
+    return true;
+  }catch{if(!quiet)toast('课表暂未更新，请检查连接后重试');return false;}
+  finally{clearTimeout(timer);timetableLoading=false;document.getElementById('btnTimetableLoad').disabled=DEMO;}
 }
 
 /* Every aggregate is derived from the remaining journal, never patched independently. */
@@ -731,8 +775,9 @@ const saveDialog=document.getElementById('saveDialog');saveDialog.hidden=true;
 document.getElementById('btnSaveClose').addEventListener('click',closeSaveProblem);
 document.getElementById('btnSaveExport').addEventListener('click',()=>{closeSaveProblem();document.getElementById('btnExp').click();});
 document.getElementById('btnSaveSettings').addEventListener('click',()=>{
-  closeSaveProblem();showPage('setup');if(!setupOpen.data)toggleSec('data');document.getElementById('btnExp').focus();
+  closeSaveProblem();showPage('setup');if(!setupOpen.sync)toggleSec('sync');if(!setupOpen.data)toggleSec('data');document.getElementById('btnExp').focus();
 });
+document.getElementById('btnTimetableLoad').addEventListener('click',()=>void loadTimetable());
 saveDialog.addEventListener('keydown',e=>{
   if(e.key==='Escape'){e.preventDefault();closeSaveProblem();}
   if(e.key==='Tab'){
@@ -896,10 +941,12 @@ function renderSetup(){
   }
   const vS=document.getElementById('vSync');
   if(vS){
-    const hasTok=!!String(syncCfg().token||'').trim();
+    const config=syncCfg(),hasTok=!!String(config.token||'').trim(),paused=config.enabled===false;
     let s='未设置';
     if(hasTok)s=({error:'同步失败',conflict:'需要处理冲突',pending:'有待同步的更改',syncing:'同步中',success:'已同步',idle:'已设置'})[syncKind]||'已设置';
+    if(hasTok&&paused)s='已暂停';
     vS.textContent=s;
+    const toggle=document.getElementById('btnSyncOff');toggle.disabled=DEMO||!hasTok;toggle.textContent=paused?'恢复自动同步':'暂停自动同步';
   }
   const vC=document.getElementById('vCal');
   if(vC){
@@ -1005,36 +1052,56 @@ async function forceUpdate(){
 
 function syncState(message,color){syncStat=message;const el=document.getElementById('syncNote');el.textContent=message;el.style.color=color||'var(--dim)';renderSetup();}
 function setupSync(){
-  syncClient?.stop();syncClient=null;if(DEMO||!syncCfg().token)return;
-  let instanceConfig={...syncCfg()};
-  syncClient=createGitHubSync({repo:SYNC_REPO,path:SYNC_PATH,getConfig:()=>instanceConfig,
+  syncClient?.stop();syncClient=null;syncClientToken='';
+  const config=syncCfg();if(DEMO||!config.token||config.enabled===false)return;
+  let instanceConfig={...config};syncClientToken=instanceConfig.token;
+  syncClient=createGitHubSync({repo:SYNC_REPO,path:SYNC_PATH,getConfig:()=>{
+      const live=syncCfg();return {...instanceConfig,token:live.enabled===false||live.token!==instanceConfig.token?'':instanceConfig.token};
+    },
     getSnapshot:()=>{if(storageBlocked||localStorage.getItem(KEY)!==persistedRaw)throw new Error('Local state changed');Model.rebuildStats(S,CATS);return JSON.parse(JSON.stringify(S));},
-    saveConfig:c=>{localStorage.setItem(SYNC_KEY,JSON.stringify(c));instanceConfig={...c};},
+    saveConfig:c=>{
+      const live=syncCfg();if(live.enabled===false||live.token!==instanceConfig.token)throw new Error('同步连接已改变');
+      const next={...c,enabled:true};localStorage.setItem(SYNC_KEY,JSON.stringify(next));instanceConfig={...next};
+    },
     onStatus:s=>{syncKind=s.kind;syncState(s.message,s.kind==='error'||s.kind==='conflict'?'#ff6b7a':s.kind==='success'?'#37d6a0':'var(--dim)');}});
+  if(typeof loadTimetable==='function')void loadTimetable({quiet:true});
 }
-function scheduleSync(){if(!DEMO&&!storageBlocked)syncClient?.schedule();}
+function scheduleSync(){if(!DEMO&&!storageBlocked&&syncCfg().enabled!==false)syncClient?.schedule();}
 function pushSync(manual=false,overwrite=false){
   if(DEMO)return Promise.resolve(false);
+  if(syncCfg().enabled===false){if(manual)syncState('自动同步已暂停，请先点「恢复自动同步」');return Promise.resolve(false);}
   if(storageBlocked){if(manual)showSaveProblem();return Promise.resolve(false);}
   if(!syncClient)setupSync();
   if(!syncClient){if(manual)syncState('请先设置 GitHub token');return Promise.resolve(false);}
   return syncClient.pushNow({overwrite});
 }
 const tok=document.getElementById('syncTok');
-setupSync();syncState(syncCfg().token?'已设置同步；需要恢复时先选择「从云端恢复」':'未设置同步');
+setupSync();syncState(syncCfg().enabled===false?'自动同步已暂停，连接信息仍保留':syncCfg().token?'已设置同步；需要恢复时先选择「从云端恢复」':'未设置同步');
 tok.addEventListener('change',()=>{
-  const value=tok.value.trim();tok.value='';syncClient?.stop();syncClient=null;
-  try{if(value)localStorage.setItem(SYNC_KEY,JSON.stringify({token:value}));else localStorage.removeItem(SYNC_KEY);
-    setupSync();syncState(value?'已设置；可同步本机记录或从云端恢复':'已停用，存档不再上传');
+  const value=tok.value.trim();tok.value='';if(!value)return;
+  const previous=syncCfg();
+  try{localStorage.setItem(SYNC_KEY,JSON.stringify(previous.token===value?{...previous,enabled:true}:{token:value,enabled:true}));
+    syncPausedForPage=false;setupSync();syncKind='idle';syncState('连接已保存；可同步本机记录或从云端恢复');
   }catch{syncState('同步设置无法保存，请检查浏览器存储','#ff6b7a');}
 });
 document.getElementById('btnSync').addEventListener('click',()=>pushSync(true));
 document.getElementById('btnSyncOff').addEventListener('click',()=>{
-  syncClient?.stop();syncClient=null;tok.value='';
-  try{localStorage.removeItem(SYNC_KEY);syncState('已停用，存档不再上传');}catch{syncState('本次已暂停同步，令牌未能从本机删除','#ff6b7a');}
+  if(DEMO)return;
+  const config=syncCfg();if(!config.token){syncState('请先连接 GitHub');return;}
+  tok.value='';
+  if(config.enabled===false){
+    try{localStorage.setItem(SYNC_KEY,JSON.stringify({...config,enabled:true}));syncPausedForPage=false;setupSync();syncKind='idle';syncState('自动同步已恢复；点击「立即同步」可核对并上传记录');}
+    catch{syncState('恢复设置未能保存，本页仍保持暂停','#ff6b7a');}
+    return;
+  }
+  // Pause immediately even when the browser cannot persist the preference.
+  syncPausedForPage=true;syncClient?.stop();syncClient=null;syncClientToken='';
+  try{localStorage.setItem(SYNC_KEY,JSON.stringify({...config,enabled:false}));syncPausedForPage=false;syncKind='idle';syncState('自动同步已暂停，连接信息和云端记录仍保留');}
+  catch{syncState('本页已暂停；暂停设置未能保存，请在重新打开后核对状态','#ff6b7a');}
 });
 document.getElementById('btnRestore').addEventListener('click',async()=>{
-  if(DEMO)return;if(!syncClient)setupSync();if(!syncClient){syncState('请先设置 GitHub token');return;}
+  if(DEMO)return;if(syncCfg().enabled===false){syncState('自动同步已暂停，请先点「恢复自动同步」');return;}
+  if(!syncClient)setupSync();if(!syncClient){syncState('请先设置 GitHub token');return;}
   const client=syncClient,remote=await client.download();if(!remote||client!==syncClient)return;
   try{const candidate=normalize(remote.state);
     if(!confirm('用云端的 '+candidate.log.length+' 条记录恢复本机？本机现存档会先保留一个恢复点。')){syncState('已取消恢复，云端未改动；需要上传时请手动同步');return;}
@@ -1214,7 +1281,11 @@ setInterval(checkDay,30000);
 window.addEventListener('storage',e=>{
   if(DEMO)return;
   if(e.key===KEY&&e.newValue!==persistedRaw){storageBlocked=true;startupWarning='另一页面已经更新存档，请刷新后继续，避免覆盖新记录。';syncClient?.stop();setSaveWarning(startupWarning);}
-  if(e.key===SYNC_KEY&&!syncCfg().token){syncClient?.stop();syncClient=null;syncState('同步已在另一页面停用');}
+  if(e.key===SYNC_KEY){
+    const config=syncCfg();
+    if(!config.token||config.enabled===false){syncClient?.stop();syncClient=null;syncClientToken='';syncState(config.token?'自动同步已在另一页面暂停':'连接已在另一页面移除');}
+    else if(!syncClient||config.token!==syncClientToken){setupSync();syncKind='idle';syncState('同步连接已更新；可点击「立即同步」核对云端记录');}
+  }
 });
 
 if(typeof navigator!=='undefined'&&'serviceWorker' in navigator
