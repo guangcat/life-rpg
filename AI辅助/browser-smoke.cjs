@@ -35,16 +35,19 @@ const server=http.createServer((req,res)=>{
     };
     const fixedPage=async isolatedContext=>{const p=await isolatedContext.newPage();await p.clock.setFixedTime(new Date('2026-10-25T12:00:00+08:00'));return p;};
     // Read only the Blob created by this isolated page; suppress its disk download.
-    const captureExport=async p=>{
+    const captureExport=async(p,{fromDialog=false}={})=>{
       await p.evaluate(()=>{
         window.__smokeDownload={text:null,name:null};
         const create=URL.createObjectURL,click=HTMLAnchorElement.prototype.click;
         URL.createObjectURL=function(blob){window.__smokeDownload.text=blob.text();return create.call(this,blob);};
         HTMLAnchorElement.prototype.click=function(){if(this.download&&this.href.startsWith('blob:')){window.__smokeDownload.name=this.download;return;}return click.call(this);};
       });
-      await p.locator('.tabbar [data-p="setup"]').click();
-      const row=p.locator('[data-sec="data"] .setrow');if(await row.getAttribute('aria-expanded')!=='true')await row.click();
-      await p.locator('#btnExp').click();
+      if(fromDialog)await p.locator('#btnSaveExport').click();
+      else{
+        await p.locator('.tabbar [data-p="setup"]').click();
+        const row=p.locator('[data-sec="data"] .setrow');if(await row.getAttribute('aria-expanded')!=='true')await row.click();
+        await p.locator('#btnExp').click();
+      }
       return p.evaluate(async()=>({name:window.__smokeDownload.name,text:await window.__smokeDownload.text}));
     };
     const {context,network}=await isolated();
@@ -57,10 +60,22 @@ const server=http.createServer((req,res)=>{
     assert.equal((await stored()).cds.find(cd=>cd.id==='cet4').date,'2026-12-12');
     assert.equal(await page.locator('#p-today').evaluate(el=>el.classList.contains('on')),true);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    for(const selector of ['#focusDo','#btnTodayTasks','#btnMinimum','#todaySummary','#timelineSummary'])assert.equal(await page.locator(selector).isVisible(),true,selector+' is available on a clean today page');
+    for(const selector of ['#boss','#tracks','#studyOutput','#tl','#saveWarning','#saveDialog'])assert.equal(await page.locator(selector).isVisible(),false,selector+' does not distract on first open');
+    assert.equal(await page.locator('#p-today details[data-today]').count(),0);
+    assert.equal(await page.locator('#p-panel #boss').count(),1);
+    await page.screenshot({path:path.join(out,'今天_首屏_390.png'),fullPage:true});
+    await page.locator('#btnTodayTasks').click();assert.equal(await page.locator('#p-tasks').evaluate(el=>el.classList.contains('on')),true);await nav('today');
+    await page.locator('#btnMinimum').click();assert.equal((await stored()).log.at(-1).id,'min_open');
+    assert.equal(await page.locator('#btnMinimum').isDisabled(),true);assert.match(await page.locator('#todaySummary').textContent(),/已完成 1 项/);
+    await page.locator('#toast button').last().click();assert.equal((await stored()).log.length,0);
+    assert.equal(await page.locator('#btnMinimum').isDisabled(),false);assert.match(await page.locator('#todaySummary').textContent(),/已完成 0 项/);
+    const outputFold=page.locator('details').filter({has:page.locator('#studyOutput')});await outputFold.locator('summary').click();
     await page.locator('#studyOutput').fill('独立做了 6 题，订正 2 题');await page.locator('#focusDo').click();
     assert.equal((await stored()).log.length,1);assert.match((await stored()).log[0].output,/6 题/);
+    await page.locator('#timelineSummary').click();assert.equal(await page.locator('#tl').isVisible(),true);
     await page.locator('#toast button').last().click();assert.equal((await stored()).log.length,0);
-    console.log('PASS mobile start, completion, output, inline undo');
+    console.log('PASS clean today page, task/minimum shortcuts, folded output/timeline, completion and inline undo');
     await nav('tasks');await page.locator('#btnNew').click();
     await page.locator('#fName').fill('非当日周任务');await page.locator('#fRepeat').selectOption('weekly');
     const otherWeekday=await page.evaluate(()=>(new Date().getDay()||7)%7+1);
@@ -78,9 +93,9 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator('#hm button').count(),112);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await page.waitForTimeout(3400);await page.screenshot({path:path.join(out,'属性_390.png'),fullPage:true});
-    await nav('today');await page.locator('details[data-today="progress"] summary').click();
+    await page.locator('details[data-today="progress"] summary').click();
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('liferpg.today')||'{}').progress===true);
-    await page.reload();await page.locator('#focus').waitFor();assert.equal(await page.locator('details[data-today="progress"]').evaluate(el=>el.open),true);
+    await page.reload();await page.locator('#focus').waitFor();await nav('panel');assert.equal(await page.locator('details[data-today="progress"]').evaluate(el=>el.open),true);
     console.log('PASS profile, cutoff, heatmap labels, persisted folds');
     await nav('setup');await page.locator('[data-sec="data"] .setrow').click();
     const before=await page.evaluate(()=>localStorage.getItem('liferpg.v1'));
@@ -98,7 +113,7 @@ const server=http.createServer((req,res)=>{
     page.once('dialog',d=>d.accept());await page.locator('#btnRecovery').click();
     assert.equal((await stored()).log.length,1);
     console.log('PASS invalid and mismatched-XP import protection, valid import and recovery point');
-    await nav('today');await page.locator('details[data-today="progress"] summary').click();await page.waitForTimeout(3400);await page.screenshot({path:path.join(out,'今天_390.png'),fullPage:true});
+    await nav('today');await page.waitForTimeout(3400);await page.screenshot({path:path.join(out,'今天_390.png'),fullPage:true});
     await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
     await page.reload();await page.locator('#focus').waitFor();
     assert.equal(await page.evaluate(()=>!!navigator.serviceWorker.controller),true);
@@ -114,10 +129,16 @@ const server=http.createServer((req,res)=>{
     assert.equal((await stored()).log.length,1);await context.setOffline(false);
     console.log('PASS cached modules, offline navigation and persisted journal');
     const second=await fixedPage(context);await second.goto(url);await second.locator('#focusDo').waitFor();
-    await page.locator('#focusDo').click();await second.locator('#saveWarning').waitFor({state:'visible'});
+    await page.locator('#focusDo').click();await second.waitForFunction(()=>!!document.getElementById('saveWarning').textContent.trim());
+    assert.equal(await second.locator('#saveWarning').isVisible(),false);assert.equal(await second.locator('#saveDialog').isVisible(),false);
     const protectedState=await page.evaluate(()=>localStorage.getItem('liferpg.v1'));
-    await second.locator('#focusDo').click();assert.equal(await page.evaluate(()=>localStorage.getItem('liferpg.v1')),protectedState);await second.close();
-    console.log('PASS stale tab cannot overwrite another tab’s new journal');
+    await second.locator('#focusDo').focus();await second.keyboard.press('Enter');await second.locator('#saveDialog').waitFor({state:'visible'});
+    await second.keyboard.press('Escape');await second.locator('#saveDialog').waitFor({state:'hidden'});
+    assert.equal(await second.evaluate(()=>document.activeElement.id),'focusDo');
+    await second.locator('#focusDo').click();await second.locator('#btnSaveSettings').click();
+    assert.equal(await second.locator('#p-setup').evaluate(el=>el.classList.contains('on')),true);assert.equal(await second.locator('#saveWarning').isVisible(),true);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('liferpg.v1')),protectedState);await second.close();
+    console.log('PASS stale tab stays quiet until a blocked action; keyboard dialog close and backup settings preserve the new journal');
     const beforeDemo=await page.evaluate(()=>JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
     const demo=await fixedPage(context);await demo.goto(url+'?demo=1&lock=1');await demo.locator('#focusDo').waitFor();await demo.locator('#focusDo').click();
     assert.equal(await demo.locator('#demobarLink').isVisible(),false);
@@ -163,6 +184,7 @@ const server=http.createServer((req,res)=>{
     const desktopRun=await isolated({viewport:{width:1440,height:1000},deviceScaleFactor:1,reducedMotion:'reduce',timezoneId:'Asia/Shanghai'});
     const desktop=await fixedPage(desktopRun.context),desktopErrors=[];desktop.on('pageerror',e=>desktopErrors.push(e.message));
     await desktop.goto(url+'?demo=1&lock=1');await desktop.locator('#focusDo').waitFor();
+    await desktop.screenshot({path:path.join(out,'今天_首屏_1440.png'),fullPage:true});
     for(const name of ['today','tasks','panel','setup']){
       await desktop.locator('.tabbar [data-p="'+name+'"]').click();
       assert.equal(await desktop.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no overflow desktop '+name);
@@ -174,12 +196,12 @@ const server=http.createServer((req,res)=>{
     const studyStored=()=>study.evaluate(()=>JSON.parse(localStorage.getItem('liferpg.v1')));
     const studyNav=name=>study.locator('.tabbar [data-p="'+name+'"]').click();
     await study.goto(url);await study.locator('#focusDo').waitFor();
-    const vocabBefore=(await studyStored()).tracks.vocab,hpBefore=await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp');
+    await studyNav('panel');const vocabBefore=(await studyStored()).tracks.vocab,hpBefore=await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp');
     for(const id of ['eng_main','eng_words']){
       await studyNav('tasks');await study.locator('#tasks [data-id="'+id+'"]').click();
       if(await study.locator('#levelCard').isVisible())await study.locator('#btnLevelClose').click();
       assert.equal((await studyStored()).tracks.vocab,vocabBefore,id+' must not invent vocabulary coverage');
-      await studyNav('today');assert.equal(await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp'),hpBefore,id+' must not reduce Boss HP');
+      await studyNav('panel');assert.equal(await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp'),hpBefore,id+' must not reduce Boss HP');
     }
     const beforeVocab=await studyStored(),xpBefore=Object.values(beforeVocab.attr).reduce((sum,xp)=>sum+xp,0);
     if(!await study.locator('details[data-today="progress"]').evaluate(el=>el.open))await study.locator('details[data-today="progress"] summary').click();
@@ -190,13 +212,14 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(afterVocab.log,beforeVocab.log);
     const hpAfter=await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp');
     assert.ok(Number(hpAfter)<Number(hpBefore),'actual vocabulary coverage reduces Boss HP');
-    await study.reload();await study.locator('#focusDo').waitFor();assert.equal((await studyStored()).tracks.vocab,vocabBefore+37);
+    await study.reload();await study.locator('#focusDo').waitFor();await studyNav('panel');assert.equal((await studyStored()).tracks.vocab,vocabBefore+37);
     assert.equal(await study.locator('#boss [data-boss-hp]').getAttribute('data-boss-hp'),hpAfter);
     assert.deepEqual(studyErrors,[]);assert.deepEqual(studyRun.network.blocked,[]);await studyRun.context.close();
     console.log('PASS English check-ins preserve vocabulary/Boss HP; explicit 37-word coverage persists without XP');
     const minimumRun=await isolated(),minimum=await fixedPage(minimumRun.context),minimumErrors=[];minimum.on('pageerror',e=>minimumErrors.push(e.message));
     await minimum.goto(url);await minimum.locator('#focusDo').waitFor();
-    await minimum.locator('.tabbar [data-p="tasks"]').click();await minimum.locator('#tasks [data-id="min_open"]').click();
+    await minimum.setViewportSize({width:360,height:844});await minimum.screenshot({path:path.join(out,'今天_首屏_360.png'),fullPage:true});
+    await minimum.locator('#btnMinimum').click();
     await minimum.locator('.tabbar [data-p="panel"]').click();
     const minimumDays=await minimum.locator('#learningDays').textContent();
     assert.match(minimumDays,/累计打卡\s*1\s*天/);assert.match(minimumDays,/有效学习\s*0\s*天/);assert.match(minimumDays,/本周达标\s*0\/7/);
@@ -207,16 +230,28 @@ const server=http.createServer((req,res)=>{
     const legacyRun=await isolated(),legacyPage=await fixedPage(legacyRun.context),legacyErrors=[];legacyPage.on('pageerror',e=>legacyErrors.push(e.message));
     const legacy=JSON.parse(before);legacy.attr.math+=999;const legacyRaw=JSON.stringify(legacy);
     await legacyPage.addInitScript(value=>localStorage.setItem('liferpg.v1',value),legacyRaw);
-    await legacyPage.goto(url);await legacyPage.locator('#saveWarning').waitFor({state:'visible'});
+    await legacyPage.goto(url);await legacyPage.locator('#focusDo').waitFor();
+    assert.equal(await legacyPage.locator('#saveWarning').isVisible(),false);assert.equal(await legacyPage.locator('#saveDialog').isVisible(),false);
     assert.equal(await legacyPage.evaluate(()=>localStorage.getItem('liferpg.v1')),legacyRaw);
-    const originalExport=await captureExport(legacyPage);assert.equal(originalExport.text,legacyRaw);assert.match(originalExport.name,/原始存档/);
+    await legacyPage.locator('#focusDo').focus();await legacyPage.keyboard.press('Enter');await legacyPage.locator('#saveDialog').waitFor({state:'visible'});
+    assert.equal(await legacyPage.locator('#saveDialog').evaluate(el=>el.contains(document.activeElement)),true);
+    await legacyPage.keyboard.press('Shift+Tab');assert.equal(await legacyPage.evaluate(()=>document.activeElement.id),'btnSaveClose');
+    await legacyPage.keyboard.press('Tab');assert.equal(await legacyPage.evaluate(()=>document.activeElement.id),'btnSaveExport');
+    await legacyPage.keyboard.press('Escape');await legacyPage.locator('#saveDialog').waitFor({state:'hidden'});
+    assert.equal(await legacyPage.evaluate(()=>document.activeElement.id),'focusDo');
+    await legacyPage.keyboard.press('Enter');await legacyPage.locator('#saveDialog').waitFor({state:'visible'});
+    await legacyPage.locator('#btnSaveClose').focus();await legacyPage.keyboard.press('Enter');await legacyPage.locator('#saveDialog').waitFor({state:'hidden'});
+    assert.equal(await legacyPage.evaluate(()=>document.activeElement.id),'focusDo');
+    await legacyPage.keyboard.press('Enter');await legacyPage.locator('#saveDialog').waitFor({state:'visible'});
+    const originalExport=await captureExport(legacyPage,{fromDialog:true});assert.equal(originalExport.text,legacyRaw);assert.match(originalExport.name,/原始存档/);
     assert.equal(await legacyPage.evaluate(()=>localStorage.getItem('liferpg.v1')),legacyRaw);
     assert.deepEqual(legacyErrors,[]);assert.deepEqual(legacyRun.network.blocked,[]);await legacyRun.context.close();
-    console.log('PASS mismatched historical XP is preserved and exported byte-for-byte with a visible warning');
+    console.log('PASS bad original stays quiet on open; blocked action explains recovery, keyboard close restores focus, export keeps original bytes');
     const carriedRun=await isolated(),carriedPage=await fixedPage(carriedRun.context),carriedErrors=[];carriedPage.on('pageerror',e=>carriedErrors.push(e.message));
     const carried=JSON.parse(before);carried.tracks.vocab=2300;carried.cds=[{id:'c123',n:'四级',date:'2026-12-19'}];
     await carriedPage.addInitScript(value=>localStorage.setItem('liferpg.v1',value),JSON.stringify(carried));
     await carriedPage.goto(url);await carriedPage.locator('#focusDo').waitFor();
+    await carriedPage.locator('.tabbar [data-p="panel"]').click();
     assert.match(await carriedPage.locator('#boss').textContent(),/目标日期：2026-12-19/);
     if(!await carriedPage.locator('details[data-today="progress"]').evaluate(el=>el.open))await carriedPage.locator('details[data-today="progress"] summary').click();
     await carriedPage.locator('[data-trk="vocab"][data-d="-1"]').click();
@@ -238,9 +273,9 @@ const server=http.createServer((req,res)=>{
     await raceFirst.locator('.tabbar [data-p="tasks"]').click();await raceFirst.locator('#tasks [data-id="eng_main"]').click();
     const diskAfterOtherTab=await raceFirst.evaluate(()=>localStorage.getItem('liferpg.v1'));
     await raceSecond.locator('.tabbar [data-p="tasks"]').click();await raceSecond.locator('#tasks [data-id="eng_words"]').click();
-    await raceSecond.locator('#saveWarning').waitFor({state:'visible'});
+    await raceSecond.locator('#saveDialog').waitFor({state:'visible'});
     assert.equal(await raceFirst.evaluate(()=>localStorage.getItem('liferpg.v1')),diskAfterOtherTab);
-    const rescuedExport=await captureExport(raceSecond),rescued=JSON.parse(rescuedExport.text);
+    const rescuedExport=await captureExport(raceSecond,{fromDialog:true}),rescued=JSON.parse(rescuedExport.text);
     assert.match(rescuedExport.name,/本页未保存/);assert.equal(rescued.log.length,1);assert.equal(rescued.log[0].id,'eng_words');assert.equal(rescued.attr.eng,12);
     assert.equal(JSON.parse(diskAfterOtherTab).log[0].id,'eng_main');
     assert.equal(await raceFirst.evaluate(()=>localStorage.getItem('liferpg.v1')),diskAfterOtherTab);

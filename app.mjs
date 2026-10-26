@@ -7,6 +7,7 @@ import * as StudyView from './modules/study-view.mjs';
 
 let S=null,syncClient=null,storageBlocked=false,blockedOriginal=false,startupWarning='',lastRenderedDay='',heatPositioned=false,persistedRaw=null;
 let syncStat='',syncKind='idle';
+let saveDialogReturnFocus=null;
 /* URL 标志位也用于无写入的演示模式。 */
 function queryFlag(name,search){
   const s=(search!==undefined)?search:((typeof location!=='undefined'&&location.search)||'');
@@ -167,25 +168,41 @@ S=(function(){
       persistedRaw=JSON.stringify(o);localStorage.setItem(KEY,persistedRaw);
     }catch{persistedRaw=r;startupWarning='存储不可用：迁移结果尚未保存，请先导出备份。';}
     return o;
-  }catch(e){storageBlocked=true;blockedOriginal=true;startupWarning='原存档需要核对，原始内容已保留。'+e.message+' 可先导出原始存档；当前操作不会覆盖它。';return normalize(blank());}
+  }catch(e){storageBlocked=true;blockedOriginal=true;startupWarning='之前的记录暂时无法载入，原始内容仍已保留。请先导出备份，再到设置中恢复。';return normalize(blank());}
 })();
 
 function setSaveWarning(message){
-  const el=document.getElementById('saveWarning');el.textContent=message||'';el.hidden=!message;
+  const el=document.getElementById('saveWarning');
+  el.textContent=message?(blockedOriginal?'之前的记录仍已保留，恢复备份后可以继续保存。':storageBlocked?'另一页面更新了记录，请先导出本页备份，再刷新继续。':'当前改动还没保存，请先导出备份。'):'';el.hidden=!message;
   document.getElementById('storageState').textContent=message?'有未保存或待恢复的数据':'本机存档正常';
 }
-function save({sync=true}={}){
+function showSaveProblem(){
+  setSaveWarning(startupWarning||'当前改动尚未保存');
+  const box=document.getElementById('saveDialog');
+  if(box.hidden)saveDialogReturnFocus=document.activeElement;
+  document.getElementById('saveDialogMessage').textContent=blockedOriginal
+    ?'之前的记录仍然保留着，但暂时无法继续写入。请先导出一份备份，再到备份设置恢复。'
+    :storageBlocked?'另一页面已经保存了新记录。本页的改动还没保存，请先导出本页备份，再刷新继续。'
+    :'本次改动还没保存到浏览器。请先导出一份备份，避免关闭页面后丢失。';
+  box.hidden=false;document.getElementById('btnSaveExport').focus();
+}
+function closeSaveProblem(){
+  document.getElementById('saveDialog').hidden=true;
+  const target=(saveDialogReturnFocus?.id&&document.getElementById(saveDialogReturnFocus.id))||saveDialogReturnFocus;
+  target?.focus();saveDialogReturnFocus=null;
+}
+function save({sync=true,notify=true}={}){
   Model.rebuildStats(S,CATS);
   if(DEMO)return true;
-  if(storageBlocked){setSaveWarning(startupWarning);return false;}
+  if(storageBlocked){setSaveWarning(startupWarning);if(notify)showSaveProblem();return false;}
   try{
     if(localStorage.getItem(KEY)!==persistedRaw){
       storageBlocked=true;startupWarning='另一页面已经更新存档。为保护新记录，当前页面已停止写入；请刷新后继续。';
-      syncClient?.stop();setSaveWarning(startupWarning);return false;
+      syncClient?.stop();setSaveWarning(startupWarning);if(notify)showSaveProblem();return false;
     }
     const raw=JSON.stringify(S);localStorage.setItem(KEY,raw);persistedRaw=raw;startupWarning='';setSaveWarning('');if(sync)scheduleSync();return true;
   }
-  catch{setSaveWarning('本机保存失败，当前改动尚未保存。请导出备份，再检查浏览器存储空间。');return false;}
+  catch{setSaveWarning('本机保存失败，当前改动尚未保存。请导出备份，再检查浏览器存储空间。');if(notify)showSaveProblem();return false;}
 }
 function installState(raw,label='导入',{keepSync=false}={}){
   if(DEMO)return false;
@@ -255,7 +272,7 @@ function renderSound(){
 
 /* ---------- 记录一次 ---------- */
 function record(id){
-  if(storageBlocked){setSaveWarning(startupWarning);return;}
+  if(storageBlocked){showSaveProblem();return;}
   const t=taskById(id);
   if(!t){toast('任务不存在','#ff6b7a');return;}
   if(S.restDays.includes(day())){toast('今天已安排休息，取消休息后可以继续打卡');return;}
@@ -268,7 +285,7 @@ function record(id){
   document.getElementById('studyOutput').value='';
   playAchievement();render();
   toast(cat(t.c).n+' +'+t.xp+(stored?'':' · 尚未保存'),cat(t.c).c,{label:'撤销',run:()=>{if(undoLog(uid))toast('已撤销');}});
-  const after=lvOf(total()).lv;if(after>before)setTimeout(()=>showLevel(after),220);
+  const after=lvOf(total()).lv;if(stored&&after>before)setTimeout(()=>showLevel(after),220);
 }
 
 /* ---------- 渲染:属性 ---------- */
@@ -457,6 +474,12 @@ function weeklyReportText(){
 }
 function renderToday(){
   const today=day(),rows=S.log.filter(l=>l.d===today);
+  document.getElementById('todaySummary').textContent='今天已完成 '+rows.length+' 项';
+  document.getElementById('timelineSummary').textContent='今天的记录 · '+rows.length+' 项';
+  const minimum=taskById('min_open'),minimumButton=document.getElementById('btnMinimum');
+  minimumButton.hidden=!minimum||!isTaskEligible(minimum);
+  minimumButton.disabled=!!minimum&&doneToday(minimum)||S.restDays.includes(today);
+  minimumButton.textContent=minimum&&doneToday(minimum)?'今天已看过计划':'今天先看一眼计划';
   document.getElementById('tl').innerHTML=rows.length?rows.slice().reverse().map(r=>{
     const c=cat(r.c);return '<div class="row"><span class="tm">'+esc(r.tm)+'</span><span class="nm">'+esc(r.n)
       +(r.output?'<span class="task-output">'+esc(r.output)+'</span>':'')+'</span><span class="g" style="color:'+c.c+'">+'+r.xp+'</span>'
@@ -496,14 +519,14 @@ function focusTask(){
   if(!S.focus||S.focus.d!==today){
     const t=pickFocus(null);
     S.focus={d:today,id:t?t.id:''};
-    save({sync:false});
+    save({sync:false,notify:false});
     return t;
   }
   const t=taskById(S.focus.id);
   if(!t||doneToday(t)||isOptionalTask(t)||!isTaskEligible(t)||S.restDays.includes(day())){
     const n=pickFocus(null);
     S.focus={d:today,id:n?n.id:''};
-    save({sync:false});
+    save({sync:false,notify:false});
     return n;
   }
   return t;
@@ -520,15 +543,12 @@ function renderFocus(){
       +'<div class="fm">'+(S.tasks.length?(doneN+' 条已打卡，接下来可以休息'):'先去「任务」页加一条')+'</div>';
     return;
   }
-  const g=gapOf(t),c=cat(t.c);
-  el.innerHTML='<div class="ft">今日主线</div>'
+  el.innerHTML='<div class="ft">接下来学这一项</div>'
     +'<div class="fn">'+esc(t.n)+'</div>'
-    +'<div class="fm">'+c.n+' +'+t.xp
-      +(g>=2?(' · 已经 <b>'+g+' 次</b>待恢复'):'')
-      +(t.d?(' · '+esc(t.d)):'')+'</div>'
+    +'<div class="fm">'+esc(t.d||'按自己的节奏完成，学完后回来记录。')+'</div>'
     +'<div class="frow2">'
-      +'<button class="ghost" id="focusSwap">换一条</button>'
-      +'<button id="focusDo">已经完成</button>'
+      +'<button class="ghost" id="focusSwap">换一项</button>'
+      +'<button id="focusDo">完成并打卡</button>'
     +'</div>';
 }
 
@@ -607,7 +627,7 @@ function trackPace(t){
   return '<p class="pace">按 '+metrics.date+' 计算：'+(metrics.daysLeft===0?'今天还需记录 ':('剩余 '+metrics.daysLeft+' 天，每天至少 '))+'<b>'+metrics.vocab.perDay+' 词</b>。这是剩余目标分摊，不是历史配速预测。</p>';
 }
 function changeVocab(amount){
-  if(storageBlocked){setSaveWarning(startupWarning);return false;}
+  if(storageBlocked){showSaveProblem();return false;}
   const track=TRACKS.find(t=>t.k==='vocab'),current=S.tracks.vocab;
   let next;try{next=Study.addVocabulary(current,amount,track.goal);}catch(e){toast('词数未改变：'+e.message,'#ff6b7a');return false;}
   S.tracks.vocab=next;document.getElementById('vocabAmount').value='';const stored=save();render();
@@ -702,6 +722,24 @@ async function shareICS(){
 /* ---------- 事件绑定 ---------- */
 document.querySelectorAll('.tabbar button').forEach(b=>{
   b.addEventListener('click',()=>showPage(b.dataset.p));
+});
+document.getElementById('btnTodayTasks').addEventListener('click',()=>showPage('tasks'));
+document.getElementById('btnMinimum').addEventListener('click',()=>record('min_open'));
+
+const saveDialog=document.getElementById('saveDialog');saveDialog.hidden=true;
+document.getElementById('btnSaveClose').addEventListener('click',closeSaveProblem);
+document.getElementById('btnSaveExport').addEventListener('click',()=>{closeSaveProblem();document.getElementById('btnExp').click();});
+document.getElementById('btnSaveSettings').addEventListener('click',()=>{
+  closeSaveProblem();showPage('setup');if(!setupOpen.data)toggleSec('data');document.getElementById('btnExp').focus();
+});
+saveDialog.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();closeSaveProblem();}
+  if(e.key==='Tab'){
+    const buttons=['btnSaveExport','btnSaveSettings','btnSaveClose'].map(id=>document.getElementById(id));
+    const index=buttons.indexOf(document.activeElement);
+    if(e.shiftKey&&index<=0){e.preventDefault();buttons.at(-1).focus();}
+    else if(!e.shiftKey&&(index<0||index===buttons.length-1)){e.preventDefault();buttons[0].focus();}
+  }
 });
 
 document.getElementById('focus').addEventListener('click',function(e){
@@ -941,7 +979,7 @@ function setupSync(){
 function scheduleSync(){if(!DEMO&&!storageBlocked)syncClient?.schedule();}
 function pushSync(manual=false,overwrite=false){
   if(DEMO)return Promise.resolve(false);
-  if(storageBlocked){setSaveWarning(startupWarning);return Promise.resolve(false);}
+  if(storageBlocked){if(manual)showSaveProblem();return Promise.resolve(false);}
   if(!syncClient)setupSync();
   if(!syncClient){if(manual)syncState('请先设置 GitHub token');return Promise.resolve(false);}
   return syncClient.pushNow({overwrite});
@@ -1094,7 +1132,7 @@ document.getElementById('hm').addEventListener('click',function(e){
 });
 document.getElementById('tracks').addEventListener('click',function(e){
   if(e.target.closest('#btnVocabAdd')){changeVocab(Number(document.getElementById('vocabAmount').value));return;}
-  if(storageBlocked){setSaveWarning(startupWarning);return;}
+  if(storageBlocked){showSaveProblem();return;}
   const b=e.target.closest('[data-trk]');
   if(!b)return;
   const t=TRACKS.filter(function(x){return x.k===b.dataset.trk;})[0];
