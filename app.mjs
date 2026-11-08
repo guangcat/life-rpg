@@ -206,7 +206,7 @@ function save({sync=true,notify=true}={}){
       storageBlocked=true;startupWarning='另一页面已经更新存档。为保护新记录，当前页面已停止写入；请刷新后继续。';
       syncClient?.stop();setSaveWarning(startupWarning);if(notify)showSaveProblem();return false;
     }
-    const raw=JSON.stringify(S);localStorage.setItem(KEY,raw);persistedRaw=raw;startupWarning='';setSaveWarning('');if(sync)scheduleSync();return true;
+    const raw=JSON.stringify(S);localStorage.setItem(KEY,raw);persistedRaw=raw;startupWarning='';setSaveWarning('');if(sync)scheduleSync();renderLifeSync();return true;
   }
   catch{setSaveWarning('本机保存失败，当前改动尚未保存。请导出备份，再检查浏览器存储空间。');if(notify)showSaveProblem();return false;}
 }
@@ -246,10 +246,11 @@ function toast(txt,color,action){
 }
 
 /* ---------- 页面切换 ---------- */
-const PAGES=['panel','tasks','today','setup'];
+const PAGES=['panel','tasks','today','health','setup'];
 let page='today';
 function showPage(p){
   page=p;
+  document.getElementById("pageLabel").textContent="我的成长空间 / "+({today:"今天",tasks:"任务",panel:"战力与学习进度",health:"体重与生活",setup:"设置"}[p]||p);
   PAGES.forEach(k=>{
     const el=document.getElementById('p-'+k);
     if(el)el.classList.toggle('on',k===p);
@@ -688,6 +689,7 @@ function render(){
   renderSound();
   renderSetup();
   renderTimetable();
+  renderLifeDashboard();renderHealth();
 }
 
 function renderTimetable(){
@@ -1050,7 +1052,7 @@ async function forceUpdate(){
   finally{row.disabled=false;renderVer();}
 }
 
-function syncState(message,color){syncStat=message;const el=document.getElementById('syncNote');el.textContent=message;el.style.color=color||'var(--dim)';renderSetup();}
+function syncState(message,color){syncStat=message;renderLifeSync();const el=document.getElementById('syncNote');el.textContent=message;el.style.color=color||'var(--dim)';renderSetup();}
 function setupSync(){
   syncClient?.stop();syncClient=null;syncClientToken='';
   const config=syncCfg();if(DEMO||!config.token||config.enabled===false)return;
@@ -1269,6 +1271,35 @@ document.getElementById('btnShare').addEventListener('click',function(){
     toast('这台设备不支持分享','#ff6b7a');
   }
 });
+
+
+function calendarDate(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k).value;return v('year')+'-'+v('month')+'-'+v('day');}
+function fillHealth(date=calendarDate()){
+ const row=S.life.entries.find(r=>r.date===date)||{};document.getElementById('healthDate').value=date;document.getElementById('healthDate').max=calendarDate();
+ for(const [id,key]of [['healthWeight','weight'],['healthSleep','sleep'],['healthActivity','activity'],['healthDiet','diet'],['healthNote','note']])document.getElementById(id).value=row[key]??'';
+ document.getElementById('healthMeasured').value=row.measured||'other';
+}
+function storeHealth(){
+ if(storageBlocked){showSaveProblem();return false;}const date=document.getElementById('healthDate').value;if(!date||date>calendarDate()){toast('请选择今天或过去的日期');return false;}
+ const num=id=>{const v=document.getElementById(id).value;return v===''?null:Number(v);};
+ const row={date,weight:num('healthWeight'),sleep:num('healthSleep'),activity:num('healthActivity'),measured:document.getElementById('healthMeasured').value,diet:document.getElementById('healthDiet').value.trim(),note:document.getElementById('healthNote').value.trim(),updatedAt:Date.now()};
+ if(row.weight===null&&row.sleep===null&&row.activity===null&&!row.diet&&!row.note){toast('至少记录一项内容');return false;}
+ const previousLife=S.life;try{S.life=Model.normalizeLife({...S.life,entries:[...S.life.entries.filter(r=>r.date!==date),row]});}catch(e){toast(e.message);return false;}
+ const stored=save();if(!stored)S.life=previousLife;document.getElementById('healthSaveStatus').textContent=stored?(DEMO?'演示记录，不写入真实存档。':'本机已保存。只有云端同步成功后 ChatGPT 才能读取。'):'尚未保存，请先处理存档问题。';renderHealth();renderLifeDashboard();if(stored)toast(DEMO?'演示记录已更新':'本机已保存这一天');return stored;
+}
+function renderLifeSync(){const el=document.getElementById('lifeSync');if(!el)return;const cfg=syncCfg();el.textContent=DEMO?'演示模式 · 不保存':storageBlocked?'存档待恢复':!cfg.token?'仅本机保存 · 未连接':cfg.enabled===false?'云端同步已暂停':syncKind==='success'&&syncStat.startsWith('已同步到 GitHub')?'已同步到云端':syncKind==='error'?'同步失败 · 点击处理':syncKind==='conflict'?'云端有新版本 · 待处理':syncKind==='syncing'?'正在同步…':syncStat||'已连接 · 等待同步';}
+function renderLifeDashboard(){
+ const summary=studySummary(),p=lvOf(total());document.getElementById('growthSummary').innerHTML='<div class="section-head"><h2>我的战力成长</h2><span>YOUR GROWTH</span></div><div class="growth-number">Lv '+p.lv+'<small>'+esc(titleFor(p.lv))+'</small></div><div class="soft-progress"><i style="width:'+p.rem/p.need*100+'%"></i></div><div class="growth-detail"><span>'+p.rem+' / '+p.need+' XP</span><span>本周有效学习 '+summary.weekEffective+' 天</span></div>';
+ const dates=[{n:'大学英语四级',date:Study.cet4Date(S.cds),label:'CET-4 · 沿用你的设置'},{n:'第 16 周 · 考试周',date:'2026-12-21',label:'12.21 — 12.27'},{n:'2027 计算机考研',date:'2027-12-01',label:'12 月首日阶段目标 · 非官方考期'}];document.getElementById('homeCountdowns').innerHTML=dates.map(c=>{const n=Study.daysUntil(c.date,calendarDate());return '<div><span>'+c.label+'</span><h3>'+c.n+'</h3><b>'+Math.abs(n)+'<small>'+(n<0?'天前':'天后')+'</small></b></div>';}).join('');renderLifeSync();
+}
+function renderHealth(){
+ const summary=Model.weightSummary(S.life.entries,calendarDate()),latest=summary.latest;document.getElementById('healthStats').innerHTML=[['最近体重',latest?latest.weight.toFixed(2)+' kg':'—',latest?latest.date+' · '+(latest.measured==='morning'?'晨起':'条件未确认'):'从第一条真实记录开始'],['近 7 日平均',summary.average===null?'—':summary.average.toFixed(2)+' kg',summary.count+' 次实测 · 空缺不补零'],['生活记录',S.life.entries.length+' 天','饮食、睡眠与活动也值得记录']].map(([a,b,c])=>'<div class="life-card"><span>'+a+'</span><b>'+b+'</b><small>'+c+'</small></div>').join('');
+ const now=new Date(calendarDate()+'T12:00:00'),start=new Date(now);start.setDate(start.getDate()-29);const startKey=dayOf(start),rows=S.life.entries.filter(r=>r.date>=startKey&&r.date<=calendarDate()&&r.weight!==null);let chart='<div class="life-empty">还没有体重记录。<br>从一次真实测量开始。</div>';
+ if(rows.length){const min=Math.min(...rows.map(r=>r.weight))-0.5,max=Math.max(...rows.map(r=>r.weight))+0.5,x=r=>45+(new Date(r.date+'T12:00:00')-start)/86400000/29*430,y=r=>170-(r.weight-min)/(max-min)*130;chart='<svg viewBox="0 0 520 215" role="img" aria-label="最近三十日实测体重趋势">'+[0,1,2].map(i=>{const v=min+(max-min)*i/2,Y=170-i*65;return '<line x1="45" x2="485" y1="'+Y+'" y2="'+Y+'" stroke="#e7ece2"/><text x="3" y="'+(Y+4)+'" fill="#8b9783" font-size="11">'+v.toFixed(1)+'</text>';}).join('')+'<polyline fill="none" stroke="#6a8c62" stroke-width="2.5" points="'+rows.map(r=>x(r)+','+y(r)).join(' ')+'"/>'+rows.map(r=>'<circle cx="'+x(r)+'" cy="'+y(r)+'" r="4" fill="#6a8c62"><title>'+r.date+' · '+r.weight+' kg</title></circle>').join('')+'<text x="45" y="200" fill="#8b9783" font-size="11">'+startKey.slice(5)+'</text><text x="450" y="200" fill="#8b9783" font-size="11">'+calendarDate().slice(5)+'</text></svg>';}
+ document.getElementById('weightChart').innerHTML=chart;document.getElementById('healthHistory').innerHTML=S.life.entries.length?'<div class="history-scroll"><table><thead><tr><th>日期</th><th>体重</th><th>睡眠</th><th>活动</th><th>饮食 / 备注</th><th></th></tr></thead><tbody>'+[...S.life.entries].reverse().map(r=>'<tr><td>'+r.date+'</td><td>'+(r.weight===null?'—':r.weight+' kg')+'<small>'+(r.measured==='morning'?'晨起':'条件未确认')+'</small></td><td>'+(r.sleep===null?'—':r.sleep+' h')+'</td><td>'+(r.activity===null?'—':r.activity+' min')+'</td><td class="history-note">'+esc([r.diet,r.note].filter(Boolean).join(' / ')||'—')+'</td><td><button class="mini" data-edit-health="'+r.date+'">编辑</button><button class="mini" data-delete-health="'+r.date+'">删除</button></td></tr>').join('')+'</tbody></table></div>':'<div class="life-empty">暂无记录。留空代表未记录，不代表没有做到。</div>';
+}
+function openSyncSettings(){showPage('setup');if(!setupOpen.sync)toggleSec('sync');}
+document.getElementById('healthForm').addEventListener('submit',e=>{e.preventDefault();storeHealth();});document.getElementById('healthDate').addEventListener('change',e=>fillHealth(e.target.value));document.getElementById('healthHistory').addEventListener('click',e=>{const edit=e.target.closest('[data-edit-health]');if(edit){fillHealth(edit.dataset.editHealth);document.getElementById('healthWeight').focus();return;}const del=e.target.closest('[data-delete-health]');if(del&&!storageBlocked&&confirm('删除这一天的生活记录？')){const old=S.life.entries.slice();S.life.entries=S.life.entries.filter(r=>r.date!==del.dataset.deleteHealth);if(!save())S.life.entries=old;renderHealth();}});document.getElementById('healthGoSync').addEventListener('click',openSyncSettings);document.getElementById('lifeSyncButton').addEventListener('click',openSyncSettings);fillHealth();
 
 showPage(page);
 render();

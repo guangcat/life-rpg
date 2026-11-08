@@ -1,6 +1,6 @@
-const CACHE = 'liferpg-20261026-cloud-v1';
+const CACHE = 'liferpg-20261108-serene-v1';
 const ASSETS = [
-  './', './index.html', './app.css', './app.mjs',
+  './', './index.html', './app.css', './serene.css', './app.mjs',
   './modules/state.mjs', './modules/sync.mjs',
   './modules/study.mjs', './modules/study-view.mjs',
   './modules/timetable.mjs',

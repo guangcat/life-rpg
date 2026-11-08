@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0f17">
+<meta name="theme-color" content="#f7f8f4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,14 +14,15 @@
 <link rel="apple-touch-icon" href="./icon-180.png">
 <link rel="icon" href="./icon-192.png">
 <link rel="stylesheet" href="./app.css">
+<link rel="stylesheet" href="./serene.css">
 </head>
 <body>
 <div class="demobar" id="demobar" hidden><b>演示模式</b> · 数据是假的，不会写进存档 <span id="demobarHint" hidden>关闭页面即可退出</span><a href="./" id="demobarLink">退出演示</a></div>
-<main>
+<div class="life-brand"><span class="brand-mark">知</span><div><b>Life RPG</b><small>行知 · 战力与生活</small></div></div><div class="life-topbar"><span id="pageLabel">我的成长空间 / 今天</span><button type="button" id="lifeSyncButton"><i></i><span id="lifeSync">仅本机保存</span></button></div><main>
 <section class="page" id="p-today" aria-label="今天">
-  <header class="page-header today-header"><div><span class="eyebrow">ONE SMALL STEP</span><h1>今天先学这一件</h1><p class="today-intro">选一项开始，学完后点完成打卡。</p></div></header>
+  <header class="page-header today-header"><div><span class="eyebrow">ONE SMALL STEP</span><h1>步履不停，向上海出发。</h1><p class="today-intro">学习与生活，各有自己的空间。今天，先做好一个小动作。</p></div></header>
   <p class="today-summary" id="todaySummary">今天还没有打卡</p>
-  <div class="focus" id="focus"></div>
+  <div class="today-grid"><div class="focus" id="focus"></div><div class="growth-summary" id="growthSummary"></div></div><div class="home-countdowns" id="homeCountdowns"></div>
   <div class="today-links"><button id="btnTodayTasks" type="button">查看全部任务 <span aria-hidden="true">›</span></button><button id="btnMinimum" type="button">今天先看一眼计划</button></div>
   <details class="today-fold today-secondary"><summary>补一句学习收获<span>选填</span></summary><div class="fold-body"><label class="sr-only" for="studyOutput">本次学习收获</label><input id="studyOutput" class="output-input" maxlength="120" placeholder="例如：做了 6 题，订正 2 题"></div></details>
   <details class="today-fold today-secondary"><summary id="timelineHeading">今天已完成<span id="timelineSummary">查看记录与撤销</span></summary><div class="fold-body"><div class="tl" id="tl" aria-label="今天的学习记录"></div></div></details>
@@ -78,13 +79,13 @@
   <div id="demoBlock"><div class="setcard" data-sec="demo"><button class="setrow" type="button"><span class="lab">演示模式</span><span class="val" id="vDemo">关</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="note">使用假数据，适合把手机递给朋友体验。</p><div class="tools"><button id="btnDemo" type="button">进入演示</button><button id="btnDemoLock" type="button">演示并隐藏退出</button></div></div></div></div></div>
   <div class="setcard danger" data-sec="danger"><button class="setrow" type="button"><span class="lab red">重置所有进度</span><span class="chev" aria-hidden="true">›</span></button><div class="setbody"><div class="inner"><p class="hubtip">将清空当前经验、记录与任务；先导出备份。重置前会保留一个本机恢复点，后续导入或重置会替换该恢复点。</p><button class="copybtn red" id="btnRst" type="button">重置所有进度</button></div></div></div>
 </section>
-</main>
+<section class="page" id="p-health" aria-label="体重与生活"><header class="page-header"><div><span class="eyebrow">CARE FOR YOUR EVERYDAY</span><h1>把自己，也放进计划里。</h1><p class="today-intro">只记录一次。云端同步成功后，ChatGPT 可以在你需要时读取。</p></div></header><div class="life-stats" id="healthStats"></div><div class="health-grid"><section class="life-card"><div class="section-head"><h2>记录这一天</h2><span>每项都可选</span></div><form id="healthForm"><label for="healthDate">日期</label><input id="healthDate" type="date" required><div class="health-form-row"><div><label for="healthWeight">体重 · kg</label><input id="healthWeight" type="number" min="20" max="500" step="0.01" inputmode="decimal" placeholder="例如 101.9"></div><div><label for="healthMeasured">测量条件</label><select id="healthMeasured"><option value="other">其他 / 未确认</option><option value="morning">晨起测量</option></select></div></div><div class="health-form-row"><div><label for="healthSleep">睡眠 · 小时</label><input id="healthSleep" type="number" min="0" max="24" step="0.1" inputmode="decimal" placeholder="选填"></div><div><label for="healthActivity">活动 · 分钟</label><input id="healthActivity" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="选填"></div></div><label for="healthDiet">饮食记录</label><textarea id="healthDiet" maxlength="2000" placeholder="吃了什么？正常记下就好。"></textarea><label for="healthNote">补充说明</label><textarea id="healthNote" maxlength="2000" placeholder="测量时间、运动内容或今天的感受"></textarea><button class="life-primary" type="submit">保存这一天</button><p class="note" id="healthSaveStatus" role="status">同一天再次保存会更新这条记录。</p></form></section><div><section class="life-card"><div class="section-head"><h2>体重趋势</h2><span>最近 30 个自然日</span></div><div id="weightChart"></div><p class="note">空缺日不补零；线段连接实际测量。体重变化不计 XP。</p></section><section class="life-card sync-guide"><h2>记录一次，之后直接聊。</h2><p>在设置中连接原有私有数据仓库。看到“已同步到云端”后，可以说：“读取 Life RPG，看看我的体重趋势。”</p><p>未同步的本机记录，ChatGPT 读取不到。这也不是自动更新聊天记忆或自动推送消息。</p><button class="mini" id="healthGoSync" type="button">检查云端同步 →</button></section></div></div><section class="life-card"><div class="section-head"><h2>生活记录</h2><span>可编辑更正或补录</span></div><div id="healthHistory"></div></section></section><footer class="life-footer">Life RPG · 每个小动作，都算数。<span>学习与生活记录保存在同一份 Life RPG 存档。</span></footer></main>
 <nav class="tabbar" aria-label="主导航">
 <button data-p="today" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>今天</span></button>
 <button data-p="tasks" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m3 6 2 2 3-4M11 6h10M3 13h4m4 0h10M3 20h4m4 0h10"/></svg><span>任务</span></button>
 <button data-p="panel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 20v-7h4v7m2 0V8h4v12m2 0V3h4v17M2 21h20"/></svg><span>学习进度</span></button>
-<button data-p="setup" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--bg)"/><circle cx="15" cy="12" r="2" fill="var(--bg)"/><circle cx="10" cy="18" r="2" fill="var(--bg)"/></svg><span>设置</span></button>
-</nav>
+<button data-p="health" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg><span>体重与生活</span></button><button data-p="setup" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--bg)"/><circle cx="15" cy="12" r="2" fill="var(--bg)"/><circle cx="10" cy="18" r="2" fill="var(--bg)"/></svg><span>设置</span></button>
+<div class="life-nav-foot"><b>下一站，上海 985</b><p>计算机学硕 · 2027 年 12 月<br>重修清零，稳步积累。</p><a href="https://shanghai-study-2027-nono.linenmoth2.chatgpt.site/#goals">学习计划、错题与复盘 ↗</a><small>学习面板与 RPG 的任务目前分别记录。</small></div></nav>
 <div id="toast" role="status" aria-live="polite" aria-atomic="false"></div>
 <section id="levelCard" class="level-overlay" role="dialog" aria-modal="true" aria-labelledby="levelValue" hidden><div class="level-content"><span class="eyebrow">A LITTLE STRONGER</span><div class="level-mark" aria-hidden="true">✦</div><h2 id="levelValue">Lv 2</h2><h3 id="levelTitle">已在路上</h3><p>每一次开始，都在让你变得更强。</p><button id="btnLevelClose" class="copybtn" type="button">继续前进</button></div></section>
 <section id="saveDialog" class="level-overlay save-dialog" role="dialog" aria-modal="true" aria-labelledby="saveDialogTitle" hidden><div class="level-content"><h2 id="saveDialogTitle">这次记录还没有保存</h2><p id="saveDialogMessage"></p><button id="btnSaveExport" class="copybtn" type="button">先导出备份</button><button id="btnSaveSettings" class="copybtn" type="button">打开备份设置</button><button id="btnSaveClose" class="copybtn" type="button">稍后处理</button></div></section>

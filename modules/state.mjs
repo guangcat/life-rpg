@@ -312,6 +312,7 @@ export function normalizeState(raw, { cats = DEFAULT_CATS, defaultTasks = [], tr
   if (result.lastExport !== undefined) timestamp(result.lastExport, 'lastExport');
   result.restDays = validateRestDays(result.restDays === undefined ? [] : result.restDays, result.log,
     businessDay(new Date(now), settings.dayStart));
+  result.life = normalizeLife(result.life);
   result.migrationWarnings = warnings;
   return result;
 }
@@ -394,4 +395,27 @@ export function newLogId() {
   if (globalThis.crypto?.randomUUID) return `log_${globalThis.crypto.randomUUID()}`;
   sequence++;
   return `log_${Date.now().toString(36)}_${sequence.toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
+}
+
+// Measurements are independent of XP; null is an unrecorded value, never zero.
+export function normalizeLife(raw) {
+  const life = raw === undefined ? {} : clone(object(raw, '生活记录'));
+  life.entries = life.entries === undefined ? [] : array(life.entries, '生活记录');
+  const dates = new Set();
+  for (const row of life.entries) {
+    object(row, '生活记录'); dateOfKey(row.date);
+    if(dates.has(row.date))fail('同一天只能有一条生活记录'); dates.add(row.date);
+    for(const [key,min,max]of [['weight',20,500],['sleep',0,24],['activity',0,1440]]){
+      if(row[key]===undefined||row[key]==='')row[key]=null;
+      if(row[key]!==null&&(typeof row[key]!=='number'||!Number.isFinite(row[key])||row[key]<min||row[key]>max))fail(key+' 超出允许范围');
+    }
+    row.measured??='other'; if(!['morning','other'].includes(row.measured))fail('测量条件无效');
+    for(const key of ['diet','note']){row[key]??='';text(row[key],key,2000,true);}
+    if(row.updatedAt!==undefined)timestamp(row.updatedAt,'updatedAt');
+  }
+  life.entries.sort((a,b)=>a.date.localeCompare(b.date));return life;
+}
+export function weightSummary(entries,today){
+  dateOfKey(today);const weights=entries.filter(r=>typeof r.weight==='number'&&Number.isFinite(r.weight)&&r.date<=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const week=weights.filter(r=>r.date>=shiftKey(today,-6));return {latest:weights.at(-1)||null,count:week.length,average:week.length?week.reduce((a,r)=>a+r.weight,0)/week.length:null};
 }

@@ -428,3 +428,18 @@ test('旧版同日多次记录能恢复且不丢XP，新打卡仍不能重复添
   const saved=a.store['liferpg.v1'],b=await boot({'liferpg.v1':saved},false,'2026-10-25T12:00:00');
   assert.equal(b.run('storageBlocked'),false);assert.equal(b.run('S.log.length'),2);assert.equal(b.run('S.attr.math'),27);
 });
+
+test('生活记录同日更新、刷新留存，并且不增加 XP',async()=>{
+ const a=await boot({},false,'2026-11-08T12:00:00');const xp=a.run('total()');
+ a.nodes.healthWeight.value='101.9';a.nodes.healthMeasured.value='morning';assert.equal(a.run('storeHealth()'),true);
+ a.nodes.healthWeight.value='101.8';assert.equal(a.run('storeHealth()'),true);assert.equal(a.run('S.life.entries.length'),1);assert.equal(a.run('total()'),xp);
+ const b=await boot(a.store,false,'2026-11-08T12:00:00');assert.equal(b.run('S.life.entries[0].weight'),101.8);
+});
+test('生活记录拒绝空白、未来日期和非法值',async()=>{
+ const a=await boot({},false,'2026-11-08T12:00:00');assert.equal(a.run('storeHealth()'),false);
+ a.nodes.healthWeight.value='101';a.nodes.healthDate.value='2027-01-01';assert.equal(a.run('storeHealth()'),false);
+ a.nodes.healthDate.value='2026-11-08';a.nodes.healthWeight.value='-1';assert.equal(a.run('storeHealth()'),false);assert.equal(a.run('S.life.entries.length'),0);
+});
+test('生活记录写入失败不会显示已保存的数据',async()=>{
+ const a=await boot({},true,'2026-11-08T12:00:00');a.nodes.healthWeight.value='101';assert.equal(a.run('storeHealth()'),false);assert.equal(a.run('S.life.entries.length'),0);
+});

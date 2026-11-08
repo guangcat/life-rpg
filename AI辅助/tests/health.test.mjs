@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {normalizeLife,weightSummary} from '../../modules/state.mjs';
+test('旧存档没有生活字段时兼容，未测体重不补零',()=>{assert.deepEqual(normalizeLife(),{entries:[]});assert.equal(normalizeLife({entries:[{date:'2026-11-08',note:'休息'}]}).entries[0].weight,null);});
+test('体重平均只使用近七个自然日的真实记录',()=>{const rows=normalizeLife({entries:[{date:'2026-10-01',weight:90},{date:'2026-11-02',weight:100},{date:'2026-11-08',weight:102}]}).entries;const r=weightSummary(rows,'2026-11-08');assert.equal(r.average,101);assert.equal(r.count,2);assert.equal(r.latest.weight,102);});
+test('生活数据拒绝重复日期、越界值和不存在的日期',()=>{for(const entries of [[{date:'2026-11-08'},{date:'2026-11-08'}],[{date:'2026-02-30',weight:100}],[{date:'2026-11-08',sleep:25}]])assert.throws(()=>normalizeLife({entries}));});
